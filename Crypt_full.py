@@ -35,8 +35,6 @@ def decrypt_full(key:str,data:bytes,as_str:bool = False) -> bytes|str:
     return decrypted
 
 
-print(testData := encrypt_full("Test","Hallo Welt"))
-print(decrypt_full("Test", testData, as_str=True))
 
 
 
