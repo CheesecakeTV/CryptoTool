@@ -1,9 +1,10 @@
 from Crypt_primitives import derive_key,decrypt,encrypt
 
 
-def encrypt_full(key:str,data:str|bytes) -> bytes:
+def encrypt_full(key:str,data:str|bytes,security_multiplier:int=1) -> bytes:
     """
     Encrypt some data
+    :param security_multiplier:
     :param key: Clear key, non-derived
     :param data:
     :return:
@@ -11,14 +12,15 @@ def encrypt_full(key:str,data:str|bytes) -> bytes:
     if isinstance(data,str):
         data = data.encode()
 
-    key_derived,salt = derive_key(key,length_bytes=32,salt_len=16)
+    key_derived,salt = derive_key(key,length_bytes=32,salt_len=16,security_multiplier=security_multiplier)
     enc_data,nonce,tag = encrypt(data,key_derived)
 
     return tag + nonce + salt + enc_data
 
-def decrypt_full(key:str,data:bytes,as_str:bool = False) -> bytes|str:
+def decrypt_full(key:str,data:bytes,as_str:bool = False,security_multiplier:int=1) -> bytes|str:
     """
     Decrypt data from encrypt_full
+    :param security_multiplier:
     :param as_str: Decode Data
     :param key: Clear key, non-derived
     :param data: Byte-array optained from encrypt_full()
@@ -26,7 +28,7 @@ def decrypt_full(key:str,data:bytes,as_str:bool = False) -> bytes|str:
     """
     tag, nonce, salt, enc_data = data[0:16], data[16:32], data[32:48], data[48:]
 
-    key_derived,_ = derive_key(key,salt=salt,length_bytes=32)
+    key_derived,_ = derive_key(key,salt=salt,length_bytes=32,security_multiplier=security_multiplier)
     decrypted = decrypt(enc_data,key_derived,nonce,tag)
 
     if as_str:

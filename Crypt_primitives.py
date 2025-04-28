@@ -35,10 +35,11 @@ def decrypt(enc_data:bytes,key:bytes,nonce:bytes,tag:bytes=None) -> bytes:
 
     return data
 
-def derive_key(key:str|bytes,salt:bytes=None,length_bytes:int=32,salt_len:int=16) -> tuple[bytes,bytes]:
+def derive_key(key:str|bytes,salt:bytes=None,length_bytes:int=32,salt_len:int=16,security_multiplier:int=10) -> tuple[bytes,bytes]:
     """
     Derives a key from passed string with the length of length_bytes.
     If no salt is passed, a random one with length 16 will be generated.
+    :param security_multiplier: Increase number for additional security. Will make this function slower
     :param salt_len: If no salt is passed, a salt with this length is used
     :param salt: Pass to generate the same key every time
     :param key: Key from e.g. a user
@@ -51,7 +52,7 @@ def derive_key(key:str|bytes,salt:bytes=None,length_bytes:int=32,salt_len:int=16
     if salt is None:
         salt = os.urandom(salt_len)
 
-    key_hash = argon2pure.argon2(key, salt, 10, 32, parallelism=1, tag_length=length_bytes)
+    key_hash = argon2pure.argon2(key, salt, 3 * security_multiplier, 12 * security_multiplier, parallelism=1, tag_length=length_bytes)
 
     return key_hash,salt
 
