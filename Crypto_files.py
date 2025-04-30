@@ -4,6 +4,7 @@ from random import choices
 from pathlib import Path
 import os
 import tempfile
+import threading
 
 
 def encrypt_file(key:str, filename:str, data:bytes, security_multiplier:int = 1) -> bytes:
@@ -25,15 +26,9 @@ def encrypt_file(key:str, filename:str, data:bytes, security_multiplier:int = 1)
 
     return encrypt_full(key, enc_data, security_multiplier=security_multiplier)
 
-
 def encrypt_file_full(key:str, file_path:str, output_folder:str = None, new_filename:str = None, security_multiplier:int = 1) -> str:
     """
-    Encrypts a file and the filename into a single file:
-
-    Decrypted file looks like this (without separation chars):
-    - First character: Length of the filename (one byte)
-    - Filename
-    - File-Data
+    Encrypts a file and saves the encrypted file somewhere
 
     :param security_multiplier: Security multiplier for key derivation
     :param key: Clear password for the file
@@ -66,6 +61,22 @@ def encrypt_file_full(key:str, file_path:str, output_folder:str = None, new_file
 
     return output_data_file.as_posix()
 
+def decrypt_file(key:str, data:bytes, security_multiplier:int = 1) -> tuple[bytes,str]:
+    """
+
+    :param data: Encrypted file content
+    :param security_multiplier: Has to match security_multiplier from encryption
+    :param key: Readable key
+    :return: Decrypted data, decrypted name
+    """
+    dec_file = decrypt_full(key,data,security_multiplier=security_multiplier)
+
+    len_name = ord(dec_file[0:1])
+    file_name = dec_file[1:len_name + 1].decode()
+    file_data = dec_file[len_name + 1:]
+
+    return file_data, file_name
+
 def decrypt_file_full(key:str, file_path:str, output_folder:str = None, security_multiplier:int = 1) -> str:
     """
 
@@ -83,12 +94,9 @@ def decrypt_file_full(key:str, file_path:str, output_folder:str = None, security
 
     output_folder = Path(output_folder)
 
-    dec_file = decrypt_full(key,file_path.read_bytes(),security_multiplier=security_multiplier)
-    len_name = ord(dec_file[0:1])
-    file_name = Path(dec_file[1:len_name + 1].decode())
-    file_data = dec_file[len_name + 1:]
+    file_data, file_name = decrypt_file(key,file_path.read_bytes(),security_multiplier=security_multiplier)
 
-    file_name = output_folder / file_name
+    file_name = output_folder / Path(file_name)
     output_folder.mkdir(parents=True, exist_ok=True)
     file_name.write_bytes(file_data)
 
@@ -104,8 +112,9 @@ def get_random_filename(length:int = 32) -> str:
 
 def _temporarely_view_file(filename:str,data:bytes) -> None:
     """
+    Should be started on a thread!
     Saves and opens a file from a temporary directory that gets deleted after closing
-    :param filename: Name of temporary file
+    :param filename: Name of temporary file. Important for the ending
     :param data:
     :return:
     """
@@ -117,13 +126,25 @@ def _temporarely_view_file(filename:str,data:bytes) -> None:
 
     direct.cleanup()
 
+def temporarely_view_encrypted_file(key:str, data:bytes, security_multiplier:int = 1):
+    """
+    Saves and opens an encrypted file from a temporary directory that gets deleted after closing
+
+    :param key:
+    :param data:
+    :param security_multiplier:
+    :return:
+    """
+    data, filename = decrypt_file(key, data, security_multiplier=security_multiplier)
+    threading.Thread(target=_temporarely_view_file,args=(filename,data)).start()
 
 #temp = encrypt_full("Hallo das ist ein Test","H"*16)
 
 #encrypt_file("Hallo/Welt\\WasGeht.txt")
-temp = encrypt_file_full("Passwort", "Bild.png", output_folder="test")
-decrypt_file_full("Passwort",temp)
+# temp = encrypt_file_full("Passwort", "Bild.png", output_folder="test")
+# decrypt_file_full("Passwort",temp)
 
+# temporarely_view_encrypted_file("Passwort", Path("test/bMXTPArl4qwIsoMOjEZ7r4b9PcI12jrv.secret").read_bytes())
 
 
 
