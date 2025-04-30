@@ -166,22 +166,4 @@ class ToggleButton(sg.Button,BetterElement):
         value[self.key] = self.state
         return event,value
 
-# layout = [
-#     [
-#         InputRegex(regex_key=r"(|.+\..+)", key="Test", enable_events=True)
-#     ],[
-#         sg.Button("Event"),
-#         ToggleButton("Toggle",key="Toggle",active_text="An")
-#     ]
-# ]
-#
-# w = BetterWindow("Test",layout,finalize=True)
-#
-# while True:
-#     e,v = w.read()
-#     print(e,v)
-#
-#     if e is None:
-#         w.close()
-#         break
 
