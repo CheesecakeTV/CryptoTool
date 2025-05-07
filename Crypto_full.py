@@ -29,6 +29,9 @@ def decrypt_full(key:str,data:bytes,as_str:bool = False,security_multiplier:int=
     """
     tag, nonce, salt, enc_data = data[0:16], data[16:32], data[32:48], data[48:]
 
+    if not verify:
+        tag = None
+
     key_derived,_ = derive_key(key,salt=salt,length_bytes=32,security_multiplier=security_multiplier)
     decrypted = decrypt(enc_data,key_derived,nonce,tag)
 

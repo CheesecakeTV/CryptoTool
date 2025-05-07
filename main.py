@@ -19,19 +19,19 @@ def _get_main_layout():
 
     tab_in_multiline = sg.Tab("Text",[
         [
-            sg.Multiline(key="IN_Multiline",size=_multiline_size)
+            sg.Multiline(key="IN_Multiline",size=_multiline_size,enable_events=True)
         ],[
             sg.Button("Refresh (Ctrl + enter)",key="Refresh_output"),
         ]
     ],key="IN_Text")
 
-    tab_in_file = sg.Tab("File",[
+    tab_in_file = sg.Tab("File (WIP)",[ # Todo
         [
             sg.FileBrowse()
         ]
     ],element_justification="center",key="IN_File")
 
-    tab_in_clipboard = sg.Tab("Clipboard",[
+    tab_in_clipboard = sg.Tab("Clipboard (WIP)",[ # Todo
         [
             sg.Button("Text from clipboard",key="Clipboard_Text",size=(_button_size:=(20,0))),
         ],[
@@ -39,13 +39,13 @@ def _get_main_layout():
         ]
     ],element_justification="center",key="IN_Clipboard")
 
-    tab_in_email = sg.Tab("Mail",[
+    tab_in_email = sg.Tab("Mail (WIP)",[ # Todo
         [
             sg.T("WIP")
         ]
     ])
 
-    tab_out_clipboard = sg.Tab("Clipboard",[
+    tab_out_clipboard = sg.Tab("Clipboard (WIP)",[ # Todo
         [
             sg.Button("Text to clipboard",key="Clipboard_out_Text",size=(_button_size:=(20,0))),
         ],[
@@ -55,11 +55,11 @@ def _get_main_layout():
 
     tab_out_multiline = sg.Tab("Text",[
         [
-            sg.Multiline(key="OUT_multiline",size=_multiline_size,disabled=True),
+            sg.Multiline(key="OUT_Multiline",size=_multiline_size,disabled=True),
         ]
     ],key="OUT_Text")
 
-    tab_out_tempfile = sg.Tab("Tempfile",[],key="OUT_Tempfile") # File that gets opened once and deleted after
+    tab_out_tempfile = sg.Tab("Tempfile (WIP)",[],key="OUT_Tempfile") # Todo # File that gets opened once and deleted after
 
     tab_password_Text = sg.Tab("Text",[
         [
@@ -76,10 +76,11 @@ def _get_main_layout():
     layout = [
         [
             sg.TabGroup([[tab_in_multiline,tab_in_file,tab_in_clipboard]],enable_events=True,key="IN_Type"),
-            sg.Frame("Encoding",frame_encoding,key="Encoding_Frame",vertical_alignment="top")
+            sg.Frame("Encoding (Literal text)",frame_encoding,key="Encoding_Frame",vertical_alignment="top")
         ],[
             sg.Radio("Encrypt",group_id="Direction",key="Encrypt",default=True,enable_events=True),
             sg.Radio("Decrypt", group_id="Direction",key="Encrypt_false",enable_events=True),
+            sg.T("",key="DecryptionStatus")
         ],[
             sg.TabGroup([[tab_out_multiline,tab_out_clipboard,tab_out_tempfile]],key="OUT_Type",expand_y=True,enable_events=True),
             sg.Frame("Password",
@@ -92,6 +93,15 @@ def _get_main_layout():
     ]
 
     return layout
+
+def bind_events(w,*_):
+    """
+    TKinter event-binding
+    :param w:
+    :param _:
+    :return:
+    """
+    w["IN_Multiline"].bind("<Control-Return>","_CtrlReturn")
 
 def get_input(_,__,v) -> bytes:
     """
@@ -132,7 +142,7 @@ def set_output(w,_,v,data:bytes) -> None:
     """
     match v["OUT_Type"]:
         case "OUT_Text":
-            w["OUT_multiline"](data.decode())
+            w["OUT_Multiline"](data.decode())
         case "OUT_File":
             ...
         case "OUT_Clipboard":
@@ -167,17 +177,33 @@ def encrypt(w,e,v,data:bytes) -> bytes:
     """
     return Crypto_full.encrypt_full(get_password(w,e,v),data)
 
-def decrypt(w,e,v,data:bytes) -> bytes:
+def decrypt(w,e,v,data:bytes,verify:bool=True) -> bytes:
     """
-    Encrypts the data.
+    Decrypts the data.
     Might be extended in the future
+    :param verify: Will raise a ValueError if message was modified
     :param data:
     :param w:
     :param e:
     :param v:
     :return:
     """
-    return Crypto_full.decrypt_full(get_password(w, e, v), data)
+    return Crypto_full.decrypt_full(get_password(w, e, v), data, verify=verify)
+
+def set_encryption_status(w,e,v,status:str="Ready",bg_color:str="beige",txt_color:str="black"):
+    """
+    Modifies status text
+    :param txt_color: Text color
+    :param w:
+    :param e:
+    :param v:
+    :param status: Status text
+    :param bg_color: Background color
+    :return:
+    """
+    w["DecryptionStatus"](status)
+    w["DecryptionStatus"].update(background_color=bg_color)
+    w["DecryptionStatus"].update(text_color=txt_color)
 
 def full_pipeline(w,e,v):
     """
@@ -195,17 +221,31 @@ def full_pipeline(w,e,v):
     if v["Encrypt"]:
         crypted_data = encrypt(w,e,v,data_in)
         crypted_data = get_encoder_decoder(w,e,v)[0](crypted_data)
+        set_encryption_status(w,e,v,status="Encrypted",bg_color="LightSkyBlue",txt_color="black")
     else:
-        crypted_data = get_encoder_decoder(w,e,v)[1](data_in)
-        crypted_data = decrypt(w,e,v,crypted_data)
+        crypted_data = get_encoder_decoder(w, e, v)[1](data_in)
+        try:
+            crypted_data = decrypt(w, e, v, crypted_data)
+            set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
+        except ValueError:
+            try:
+                crypted_data = decrypt(w, e, v, crypted_data, verify=False)
+                set_encryption_status(w, e, v, "Message might be modified!", bg_color="red", txt_color="lime")
+            except ValueError:
+                set_encryption_status(w,e,v,"Message has wrong format or is incomplete!",bg_color="orange", txt_color="black")
+                crypted_data = b"Error"
 
-    set_output(w,e,v,crypted_data)
-
+    try:
+        set_output(w,e,v,crypted_data)
+    except UnicodeDecodeError:
+        set_encryption_status(w, e, v, "Wrong settings or wrong password", bg_color="orange", txt_color="black")
 
 def main():
 
     w = sg.Window("Cypher Tool",_get_main_layout(),finalize=True,element_justification="center")
     w.read(timeout=10)
+
+    bind_events(w)
 
     while True:
         e,v = w.read()
@@ -229,9 +269,11 @@ def main():
             continue
 
         ### Non-abstract functionality ###
-        if e == "Refresh_output":
+        if e in ["Refresh_output","IN_Multiline_CtrlReturn"]:
             full_pipeline(w,e,v)
 
+        if e == "IN_Multiline":
+            set_encryption_status(w,e,v)
 
     print("Program closing")
 
