@@ -238,6 +238,7 @@ def full_pipeline(w,e,v):
     data_in:bytes = get_input(w,e,v)
 
     if not data_in:
+        set_encryption_status(w,e,v,status="No input",bg_color="DarkGray",txt_color="black")
         return
 
     if v["Encrypt"]:
@@ -265,8 +266,9 @@ def full_pipeline(w,e,v):
 def main():
 
     w = sg.Window("Cypher Tool",_get_main_layout(),finalize=True,element_justification="center")
-    w.read(timeout=10)
+    e,v = w.read(timeout=10)
 
+    set_encryption_status(w,e,v)
     bind_events(w)
 
     while True:
