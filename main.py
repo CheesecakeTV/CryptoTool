@@ -19,15 +19,17 @@ def _get_main_layout():
 
     tab_in_multiline = sg.Tab("Text",[
         [
-            sg.Multiline(key="in_multiline",size=_multiline_size)
+            sg.Multiline(key="IN_Multiline",size=_multiline_size)
+        ],[
+            sg.Button("Refresh (Ctrl + enter)",key="Refresh_output"),
         ]
-    ])
+    ],key="IN_Text")
 
     tab_in_file = sg.Tab("File",[
         [
             sg.FileBrowse()
         ]
-    ],element_justification="center")
+    ],element_justification="center",key="IN_File")
 
     tab_in_clipboard = sg.Tab("Clipboard",[
         [
@@ -35,7 +37,7 @@ def _get_main_layout():
         ],[
             sg.Button("Image from clipboard", key="Clipboard_Image", size=_button_size),
         ]
-    ],element_justification="center")
+    ],element_justification="center",key="IN_Clipboard")
 
     tab_in_email = sg.Tab("Mail",[
         [
@@ -53,7 +55,7 @@ def _get_main_layout():
 
     tab_out_multiline = sg.Tab("Text",[
         [
-            sg.Multiline(key="out_multiline",size=_multiline_size)
+            sg.Multiline(key="out_multiline",size=_multiline_size,disabled=True),
         ]
     ])
 
@@ -69,26 +71,97 @@ def _get_main_layout():
                 enable_events = True,
             ),
         ]
-    ])
+    ],key="PW_Text")
 
     layout = [
         [
-            sg.TabGroup([[tab_in_multiline,tab_in_file,tab_in_clipboard]]),
+            sg.TabGroup([[tab_in_multiline,tab_in_file,tab_in_clipboard]],enable_events=True,key="IN_Type"),
             sg.Frame("Encoding",frame_encoding,key="Encoding_Frame",vertical_alignment="top")
         ],[
             sg.Radio("Encrypt",group_id="Direction",key="Encrypt",default=True,enable_events=True),
             sg.Radio("Decrypt", group_id="Direction",key="Encrypt_false",enable_events=True),
         ],[
-            sg.TabGroup([[tab_out_multiline,tab_out_clipboard,tab_out_tempfile]],expand_y=True),
+            sg.TabGroup([[tab_out_multiline,tab_out_clipboard,tab_out_tempfile]],key="OUT_Type",expand_y=True,enable_events=True),
             sg.Frame("Password",
-                     [[sg.TabGroup([[tab_password_Text]])]],
-                     expand_y=True
+                     [[sg.TabGroup([[
+                         tab_password_Text
+                     ]],key="PW_Type")]],
+                     expand_y=True,
             )
         ]
     ]
 
     return layout
 
+def get_input(_,__,v) -> bytes:
+    """
+    "Reads" the current input
+    :param _:
+    :param __:
+    :param v:
+    :return:
+    """
+    match v["IN_Type"]:
+        case "IN_Text":
+            return v["IN_Multiline"].strip().encode()
+        case "IN_File":
+            ...
+        case "IN_Clipboard":
+            ...
+
+def get_password(_,__,v) -> str:
+    """
+    Returns the current password
+    :param _:
+    :param __:
+    :param v:
+    :return:
+    """
+    match v["PW_Type"]:
+        case "PW_Text":
+            return v["password_text"]
+
+def set_output(w,_,v,data:bytes) -> None:
+    """
+    Forwards the data to a set output
+    :param v:
+    :param _:
+    :param w:
+    :param data: En-/decrypted data to be output
+    :return:
+    """
+    match v["IN_Type"]:
+        case "IN_Text":
+            return v["IN_Multiline"].strip().encode()
+        case "IN_File":
+            ...
+        case "IN_Clipboard":
+            ...
+
+def get_encoder_decoder(_,__,v) -> tuple[callable, callable]:
+    """
+    Returns the selected encoder and decoder (Base64, Base16, etc.)
+    :return: encoder, decoder
+    """
+    # if v["ENC_Plain"]: # Not necessary, since you can't display all those chars anyways
+    #     temp = lambda a:a
+    #     return temp, temp
+
+    if v["ENC_Base16"]:
+        return base64.b16encode,base64.b16decode
+
+    if v["ENC_Base64"]:
+        return base64.b64encode,base64.b64decode
+
+def encoding_pipeline(w,_,v):
+    """
+    Handles the full encoding
+    :param w:
+    :param _:
+    :param v:
+    :return:
+    """
+    ...
 
 def main():
 
@@ -97,11 +170,17 @@ def main():
 
     while True:
         e,v = w.read()
-        print(v)
 
         if e is None:
             w.close()
             break
+
+        ### Abstract ###
+
+        if e in v:
+            print(e,v[e])
+        else:
+            print(e)
 
         if callable(e):
             try:
@@ -110,7 +189,13 @@ def main():
                 e(w,e,v)
             continue
 
-    print("Program complete")
+        ### Non-abstract functionality ###
+        if e == "Refresh_output":
+            print(get_password(w,e,v))
+            print(get_encoder_decoder(w, e, v))
+
+
+    print("Program closing")
 
 
 
