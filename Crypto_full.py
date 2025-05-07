@@ -1,4 +1,4 @@
-from Crypt_primitives import derive_key,decrypt,encrypt
+from Crypto_primitives import derive_key,decrypt,encrypt
 
 
 def encrypt_full(key:str,data:str|bytes,security_multiplier:int=1) -> bytes:

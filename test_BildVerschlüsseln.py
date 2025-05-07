@@ -1,4 +1,4 @@
-from Crypt_full import encrypt_full,decrypt_full
+from Crypto_full import encrypt_full,decrypt_full
 
 
 with open("Bild.png","rb") as f:

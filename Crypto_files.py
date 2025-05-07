@@ -1,4 +1,4 @@
-from Crypt_full import encrypt_full,decrypt_full
+from Crypto_full import encrypt_full,decrypt_full
 from string import ascii_letters, digits
 from random import choices
 from pathlib import Path
