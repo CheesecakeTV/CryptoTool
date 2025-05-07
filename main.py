@@ -2,9 +2,27 @@ import Crypto_full
 import Crypto_files
 import FreeSimpleGUI as sg
 import base64
+import clipboard as clp
+
+def throw_event(w:sg.Window,event:str,value:any=None):
+    """
+    Throws an event
+    :param w: Window to throw to
+    :param event: Event name
+    :param value: Event value
+    :return:
+    """
+    w.write_event_value(event,value)
 
 def _get_main_layout():
     """Main layout"""
+
+    ### Abstractly called key-functions ###
+    def paste_to_input_multiline(w,e,v):
+        w["IN_Multiline"](clp.paste())
+        throw_event(w,"IN_Multiline_CtrlReturn")
+
+
     _multiline_size = (80,15)
 
     _radio_args = {
@@ -21,7 +39,9 @@ def _get_main_layout():
         [
             sg.Multiline(key="IN_Multiline",size=_multiline_size,enable_events=True)
         ],[
-            sg.Button("Refresh (Ctrl + enter)",key="Refresh_output"),
+            sg.Button("Refresh (Ctrl + Return)",key="Refresh_output"),
+            sg.Button("Paste from clipboard",key=paste_to_input_multiline),
+            sg.Button("Clear",key=lambda w,_,__:w["IN_Multiline"](""))
         ]
     ],key="IN_Text")
 
@@ -56,6 +76,8 @@ def _get_main_layout():
     tab_out_multiline = sg.Tab("Text",[
         [
             sg.Multiline(key="OUT_Multiline",size=_multiline_size,disabled=True),
+        ],[
+            sg.Button("Copy to clipboard",key=lambda _,__,v:clp.copy(v["OUT_Multiline"]))
         ]
     ],key="OUT_Text")
 
@@ -263,10 +285,13 @@ def main():
 
         if callable(e):
             try:
-                e(w,e,v,w[e])
-            except (TypeError,KeyError):
-                e(w,e,v)
-            continue
+                try:
+                    e(w,e,v,w[e])
+                except (TypeError,KeyError):
+                    e(w,e,v)
+                continue
+            except Exception as ex:
+                print("Abstract call error:",ex.__class__.__name__,ex)
 
         ### Non-abstract functionality ###
         if e in ["Refresh_output","IN_Multiline_CtrlReturn"]:
