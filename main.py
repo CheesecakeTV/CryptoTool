@@ -51,15 +51,15 @@ def _get_main_layout():
         ],[
             sg.Button("Image to clipboard", key="Clipboard_out_Image", size=_button_size),
         ]
-    ],element_justification="center")
+    ],element_justification="center",key="OUT_Clipboard")
 
     tab_out_multiline = sg.Tab("Text",[
         [
-            sg.Multiline(key="out_multiline",size=_multiline_size,disabled=True),
+            sg.Multiline(key="OUT_multiline",size=_multiline_size,disabled=True),
         ]
-    ])
+    ],key="OUT_Text")
 
-    tab_out_tempfile = sg.Tab("Tempfile",[]) # File that gets opened once and deleted after
+    tab_out_tempfile = sg.Tab("Tempfile",[],key="OUT_Tempfile") # File that gets opened once and deleted after
 
     tab_password_Text = sg.Tab("Text",[
         [
@@ -130,12 +130,14 @@ def set_output(w,_,v,data:bytes) -> None:
     :param data: En-/decrypted data to be output
     :return:
     """
-    match v["IN_Type"]:
-        case "IN_Text":
-            return v["IN_Multiline"].strip().encode()
-        case "IN_File":
+    match v["OUT_Type"]:
+        case "OUT_Text":
+            w["OUT_multiline"](data.decode())
+        case "OUT_File":
             ...
-        case "IN_Clipboard":
+        case "OUT_Clipboard":
+            ...
+        case "OUT_Tempfile":
             ...
 
 def get_encoder_decoder(_,__,v) -> tuple[callable, callable]:
@@ -153,15 +155,52 @@ def get_encoder_decoder(_,__,v) -> tuple[callable, callable]:
     if v["ENC_Base64"]:
         return base64.b64encode,base64.b64decode
 
-def encoding_pipeline(w,_,v):
+def encrypt(w,e,v,data:bytes) -> bytes:
     """
-    Handles the full encoding
+    Encrypts the data.
+    Might be extended in the future
+    :param data:
     :param w:
-    :param _:
+    :param e:
     :param v:
     :return:
     """
-    ...
+    return Crypto_full.encrypt_full(get_password(w,e,v),data)
+
+def decrypt(w,e,v,data:bytes) -> bytes:
+    """
+    Encrypts the data.
+    Might be extended in the future
+    :param data:
+    :param w:
+    :param e:
+    :param v:
+    :return:
+    """
+    return Crypto_full.decrypt_full(get_password(w, e, v), data)
+
+def full_pipeline(w,e,v):
+    """
+    Handles the full encoding/decoding
+    :param w:
+    :param e:
+    :param v:
+    :return:
+    """
+    data_in:bytes = get_input(w,e,v)
+
+    if not data_in:
+        return
+
+    if v["Encrypt"]:
+        crypted_data = encrypt(w,e,v,data_in)
+        crypted_data = get_encoder_decoder(w,e,v)[0](crypted_data)
+    else:
+        crypted_data = get_encoder_decoder(w,e,v)[1](data_in)
+        crypted_data = decrypt(w,e,v,crypted_data)
+
+    set_output(w,e,v,crypted_data)
+
 
 def main():
 
@@ -191,8 +230,7 @@ def main():
 
         ### Non-abstract functionality ###
         if e == "Refresh_output":
-            print(get_password(w,e,v))
-            print(get_encoder_decoder(w, e, v))
+            full_pipeline(w,e,v)
 
 
     print("Program closing")

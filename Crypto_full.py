@@ -17,9 +17,10 @@ def encrypt_full(key:str,data:str|bytes,security_multiplier:int=1) -> bytes:
 
     return tag + nonce + salt + enc_data
 
-def decrypt_full(key:str,data:bytes,as_str:bool = False,security_multiplier:int=1) -> bytes|str:
+def decrypt_full(key:str,data:bytes,as_str:bool = False,security_multiplier:int=1,verify:bool=True) -> bytes|str:
     """
     Decrypt data from encrypt_full
+    :param verify: If the message was modified, this will raise a ValueError
     :param security_multiplier:
     :param as_str: Decode Data
     :param key: Clear key, non-derived
