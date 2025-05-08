@@ -55,7 +55,7 @@ def _get_main_layout():
         ]
     ],key="IN_Text")
 
-    tab_in_file = sg.Tab("File (WIP)",[ # Todo
+    tab_in_file = sg.Tab("File",[
         [
             sg.FileBrowse("Select file",target="IN_File_Path"),
             sg.In(key="IN_File_Path",enable_events=True,expand_x=True),
