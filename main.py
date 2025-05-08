@@ -1,3 +1,4 @@
+import binascii
 import Crypto_full
 import Crypto_files
 import FreeSimpleGUI as sg
@@ -77,7 +78,8 @@ def _get_main_layout():
         [
             sg.Multiline(key="OUT_Multiline",size=_multiline_size,disabled=True),
         ],[
-            sg.Button("Copy to clipboard",key=lambda _,__,v:clp.copy(v["OUT_Multiline"]))
+            sg.Button("Copy to clipboard",key=lambda _,__,v:clp.copy(v["OUT_Multiline"])),
+            sg.Checkbox("Automatically copy to clipboard",key="OUT_Multiline_AutoCopyCLP")
         ]
     ],key="OUT_Text")
 
@@ -100,7 +102,8 @@ def _get_main_layout():
             sg.TabGroup([[tab_in_multiline,tab_in_file,tab_in_clipboard]],enable_events=True,key="IN_Type"),
             sg.Frame("Encoding (Literal text)",frame_encoding,key="Encoding_Frame",vertical_alignment="top")
         ],[
-            sg.Radio("Encrypt",group_id="Direction",key="Encrypt",default=True,enable_events=True),
+            sg.Radio("Automatic",group_id="Direction",key="AutomaticDirection",default=True,enable_events=True),
+            sg.Radio("Encrypt",group_id="Direction",key="Encrypt",enable_events=True),
             sg.Radio("Decrypt", group_id="Direction",key="Encrypt_false",enable_events=True),
             sg.T("",key="DecryptionStatus")
         ],[
@@ -164,7 +167,10 @@ def set_output(w,_,v,data:bytes) -> None:
     """
     match v["OUT_Type"]:
         case "OUT_Text":
-            w["OUT_Multiline"](data.decode())
+            data = data.decode()
+            w["OUT_Multiline"](data)
+            if v["OUT_Multiline_AutoCopyCLP"]:
+                clp.copy(data)
         case "OUT_File":
             ...
         case "OUT_Clipboard":
@@ -241,13 +247,26 @@ def full_pipeline(w,e,v):
         set_encryption_status(w,e,v,status="No input",bg_color="DarkGray",txt_color="black")
         return
 
-    if v["Encrypt"]:
+    if v["AutomaticDirection"]: # Automatic direction check
+        try:
+            # Decryption
+            crypted_data = get_encoder_decoder(w,e,v)[1](data_in)
+            crypted_data = decrypt(w,e,v,crypted_data)
+            set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
+        except ValueError:
+            # Encryption
+            crypted_data = encrypt(w, e, v, data_in)
+            crypted_data = get_encoder_decoder(w, e, v)[0](crypted_data)
+            set_encryption_status(w, e, v, status="Encrypted", bg_color="LightSkyBlue", txt_color="black")
+
+    elif v["Encrypt"]:  # Normal encryption
         crypted_data = encrypt(w,e,v,data_in)
         crypted_data = get_encoder_decoder(w,e,v)[0](crypted_data)
         set_encryption_status(w,e,v,status="Encrypted",bg_color="LightSkyBlue",txt_color="black")
     else:
-        crypted_data = get_encoder_decoder(w, e, v)[1](data_in)
+        crypted_data = b""  # So that the IDE doesn't complain
         try:
+            crypted_data = get_encoder_decoder(w, e, v)[1](data_in)
             crypted_data = decrypt(w, e, v, crypted_data)
             set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
         except ValueError:
@@ -261,7 +280,7 @@ def full_pipeline(w,e,v):
     try:
         set_output(w,e,v,crypted_data)
     except UnicodeDecodeError:
-        set_encryption_status(w, e, v, "Wrong settings or wrong password", bg_color="orange", txt_color="black")
+        set_encryption_status(w, e, v, "Wrong settings or password", bg_color="orange", txt_color="black")
 
 def main():
 
