@@ -1,13 +1,13 @@
 import os
-
 import Crypto_full
 import Crypto_files
 import FreeSimpleGUI as sg
 import base64
 import clipboard as clp
-from functools import partial
 from pathlib import Path
 from enum import Enum
+
+sg.theme("DarkGray11")
 
 class DIRECTION(Enum):
     ENCRYPT = 1
@@ -31,7 +31,6 @@ def _get_main_layout():
     def paste_to_input_multiline(w,e,v):
         w["IN_Multiline"](clp.paste())
         throw_event(w,"IN_Multiline_CtrlReturn")
-
 
     _multiline_size = (80,15)
 
