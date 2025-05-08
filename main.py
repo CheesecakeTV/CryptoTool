@@ -239,6 +239,15 @@ def set_encryption_status(w,e,v,status:str="Ready",bg_color:str="beige",txt_colo
     w["DecryptionStatus"].update(background_color=bg_color)
     w["DecryptionStatus"].update(text_color=txt_color)
 
+# Provide functions for each stage
+_neutral = lambda w,e,v:None
+pipeline_input:callable = get_input
+pipeline_encoding:callable = base64.b64encode
+pipeline_decoding:callable = base64.b64decode
+pipeline_output:callable = set_output
+pipeline_encrypt:callable = encrypt
+pipeline_decrypt:callable = decrypt
+
 def full_pipeline(w,e,v):
     """
     Handles the full encoding/decoding
@@ -247,7 +256,7 @@ def full_pipeline(w,e,v):
     :param v:
     :return:
     """
-    data_in:bytes = get_input(w,e,v)
+    data_in:bytes = pipeline_input(w,e,v)
 
     if not data_in:
         set_encryption_status(w,e,v,status="No input",bg_color="DarkGray",txt_color="black")
@@ -256,35 +265,35 @@ def full_pipeline(w,e,v):
     if v["AutomaticDirection"]: # Automatic direction check
         try:
             # Decryption
-            crypted_data = get_encoder_decoder(w,e,v)[1](data_in)
-            crypted_data = decrypt(w,e,v,crypted_data)
+            crypted_data = pipeline_decoding(data_in)
+            crypted_data = pipeline_decrypt(w,e,v,crypted_data)
             set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
         except ValueError:
             # Encryption
-            crypted_data = encrypt(w, e, v, data_in)
-            crypted_data = get_encoder_decoder(w, e, v)[0](crypted_data)
+            crypted_data = pipeline_encrypt(w, e, v, data_in)
+            crypted_data = pipeline_encoding(crypted_data)
             set_encryption_status(w, e, v, status="Encrypted", bg_color="LightSkyBlue", txt_color="black")
 
     elif v["Encrypt"]:  # Normal encryption
-        crypted_data = encrypt(w,e,v,data_in)
-        crypted_data = get_encoder_decoder(w,e,v)[0](crypted_data)
+        crypted_data = pipeline_encrypt(w,e,v,data_in)
+        crypted_data = pipeline_encoding(crypted_data)
         set_encryption_status(w,e,v,status="Encrypted",bg_color="LightSkyBlue",txt_color="black")
     else:
         crypted_data = b""  # So that the IDE doesn't complain
         try:
-            crypted_data = get_encoder_decoder(w, e, v)[1](data_in)
-            crypted_data = decrypt(w, e, v, crypted_data)
+            crypted_data = pipeline_decoding(data_in)
+            crypted_data = pipeline_decrypt(w, e, v, crypted_data)
             set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
         except ValueError:
             try:
-                crypted_data = decrypt(w, e, v, crypted_data, verify=False)
+                crypted_data = pipeline_decrypt(w, e, v, crypted_data, verify=False)
                 set_encryption_status(w, e, v, "Message might be modified!", bg_color="red", txt_color="lime")
             except ValueError:
                 set_encryption_status(w,e,v,"Message has wrong format or is incomplete!",bg_color="orange", txt_color="black")
                 crypted_data = b"Error"
 
     try:
-        set_output(w,e,v,crypted_data)
+        pipeline_output(w,e,v,crypted_data)
     except UnicodeDecodeError:
         set_encryption_status(w, e, v, "Wrong settings or password", bg_color="orange", txt_color="black")
 
