@@ -83,7 +83,13 @@ def _get_main_layout():
         ]
     ],key="OUT_Text")
 
-    tab_out_tempfile = sg.Tab("Tempfile (WIP)",[],key="OUT_Tempfile") # Todo # File that gets opened once and deleted after
+    tab_out_tempfile = sg.Tab("Tempfile (WIP)",[
+        [
+            sg.Radio("View file",key="TMP_View_File",group_id="Tempfile"),
+            sg.T("Ending:"),
+            sg.In(key="TMP_View_File_Ending"),
+        ]
+    ],key="OUT_Tempfile") # Todo # File that gets opened once and deleted after
 
     tab_password_Text = sg.Tab("Text",[
         [
