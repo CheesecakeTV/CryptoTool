@@ -1,4 +1,6 @@
 .venv/
+.idea/
 test/
 test?.*
 test.*
+__pycache__/
