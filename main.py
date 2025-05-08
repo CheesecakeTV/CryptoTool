@@ -209,14 +209,17 @@ def set_output_text(w,e,v,data:bytes):
 
 def set_output_file(w,e,v,data:bytes):
     """Output for single file"""
-    if pipeline_direction == DIRECTION.DECRYPT:
-        file_data, file_name = Crypto_files.get_data_and_filename(data)
+    try:
+        if pipeline_direction == DIRECTION.DECRYPT:
+            file_data, file_name = Crypto_files.get_data_and_filename(data)
 
-        path = Path(v["OUT_File_BrowseFolder"]) / Path(file_name)
-        path.write_bytes(file_data)
-    else:
-        path = Path(v["OUT_File_BrowseFolder"]) / (Crypto_files.get_random_filename(32) + ".secret")
-        path.write_bytes(data)
+            path = Path(v["OUT_File_BrowseFolder"]) / Path(file_name)
+            path.write_bytes(file_data)
+        else:
+            path = Path(v["OUT_File_BrowseFolder"]) / (Crypto_files.get_random_filename(32) + ".secret")
+            path.write_bytes(data)
+    except PermissionError:
+        set_encryption_status(w,e,v,"Permission error!","red")
 
 def get_encoder_decoder_text(_,__,v) -> tuple[callable, callable]:
     """
@@ -375,7 +378,7 @@ def main():
                 print("Abstract call error:",ex.__class__.__name__,ex)
 
         ### Non-abstract functionality ###
-        if e == "IN_Multiline":
+        if e in ["IN_Multiline","IN_File_Path"]:
             set_encryption_status(w,e,v)
 
         if v["OUT_Type"] in ["OUT_Text"]:
