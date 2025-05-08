@@ -1,9 +1,18 @@
-import binascii
+import os
+
 import Crypto_full
 import Crypto_files
 import FreeSimpleGUI as sg
 import base64
 import clipboard as clp
+from functools import partial
+from pathlib import Path
+from enum import Enum
+
+class DIRECTION(Enum):
+    ENCRYPT = 1
+    DECRYPT = 2
+    AUTO = 3
 
 def throw_event(w:sg.Window,event:str,value:any=None):
     """
@@ -40,15 +49,17 @@ def _get_main_layout():
         [
             sg.Multiline(key="IN_Multiline",size=_multiline_size,enable_events=True)
         ],[
-            sg.Button("Refresh (Ctrl + Return)",key="Refresh_output"),
+            sg.Button("Refresh (Ctrl + Return)",key="IN_Text_Refresh_Output"),
             sg.Button("Paste from clipboard",key=paste_to_input_multiline),
             sg.Button("Clear",key=lambda w,_,__:w["IN_Multiline"](""))
         ]
     ],key="IN_Text")
 
-    tab_in_file = sg.Tab("File (WIP)",[ # Todo
+    tab_in_file = sg.Tab("File",[
         [
-            sg.FileBrowse()
+            sg.FileBrowse("Select file",target="IN_File_Path"),
+            sg.In(key="IN_File_Path",enable_events=True,expand_x=True),
+            sg.Button("En-/Decrypt",key="IN_File_Crypt")
         ]
     ],element_justification="center",key="IN_File")
 
@@ -83,6 +94,14 @@ def _get_main_layout():
         ]
     ],key="OUT_Text")
 
+    tab_out_file = sg.Tab("File",[
+        [
+            sg.FolderBrowse("Browse folder",target="OUT_File_BrowseFolder"),
+            sg.In(key="OUT_File_BrowseFolder",enable_events=True,expand_x=True),
+            sg.Button("Oben in Explorer",key=lambda w,e,v:os.system(f"start {Path(v['OUT_File_BrowseFolder']) if v['OUT_File_BrowseFolder'] else os.getcwd()}"))
+        ]
+    ],key="OUT_File")
+
     tab_out_tempfile = sg.Tab("Tempfile (WIP)",[
         [
             sg.Radio("View file",key="TMP_View_File",group_id="Tempfile"),
@@ -113,7 +132,7 @@ def _get_main_layout():
             sg.Radio("Decrypt", group_id="Direction",key="Encrypt_false",enable_events=True),
             sg.T("",key="DecryptionStatus")
         ],[
-            sg.TabGroup([[tab_out_multiline,tab_out_clipboard,tab_out_tempfile]],key="OUT_Type",expand_y=True,enable_events=True),
+            sg.TabGroup([[tab_out_multiline,tab_out_file,tab_out_clipboard,tab_out_tempfile]],key="OUT_Type",expand_y=True,enable_events=True),
             sg.Frame("Password",
                      [[sg.TabGroup([[
                          tab_password_Text
@@ -134,21 +153,35 @@ def bind_events(w,*_):
     """
     w["IN_Multiline"].bind("<Control-Return>","_CtrlReturn")
 
-def get_input(_,__,v) -> bytes:
-    """
-    "Reads" the current input
-    :param _:
-    :param __:
-    :param v:
-    :return:
-    """
-    match v["IN_Type"]:
-        case "IN_Text":
-            return v["IN_Multiline"].strip().encode()
-        case "IN_File":
-            ...
-        case "IN_Clipboard":
-            ...
+def get_input_text(w,e,v) -> bytes:
+    """Multiline input"""
+    return v["IN_Multiline"].strip().encode()
+
+def get_input_file(w,e,v) -> bytes:
+    """Single file"""
+    global pipeline_direction
+
+    path = Path(v["IN_File_Path"])
+    print(path.name)
+    if not path.exists():
+        return b""
+
+    pipeline_additional_data["File"] = True
+
+    if (pipeline_direction == DIRECTION.ENCRYPT
+            or (pipeline_direction == DIRECTION.AUTO and not path.name.endswith(".secret"))): # Read and put filename in front
+        pipeline_direction = DIRECTION.ENCRYPT
+        return chr(len(path.name)).encode() + path.name.encode() + path.read_bytes()
+    else: # Only read
+        pipeline_direction = DIRECTION.DECRYPT
+        return path.read_bytes()
+
+def decode_file(data:bytes) -> bytes:
+    """Extract file-data"""
+    if pipeline_direction == DIRECTION.DECRYPT and pipeline_additional_data.get("Files"):
+        data,pipeline_additional_data["Filename"] = Crypto_files.get_data_and_filename(data)
+
+    return data
 
 def get_password(_,__,v) -> str:
     """
@@ -162,44 +195,42 @@ def get_password(_,__,v) -> str:
         case "PW_Text":
             return v["password_text"]
 
-def set_output(w,_,v,data:bytes) -> None:
-    """
-    Forwards the data to a set output
-    :param v:
-    :param _:
-    :param w:
-    :param data: En-/decrypted data to be output
-    :return:
-    """
-    match v["OUT_Type"]:
-        case "OUT_Text":
-            data = data.decode()
-            w["OUT_Multiline"](data)
-            if v["OUT_Multiline_AutoCopyCLP"]:
-                clp.copy(data)
-        case "OUT_File":
-            ...
-        case "OUT_Clipboard":
-            ...
-        case "OUT_Tempfile":
-            ...
+def set_output_text(w,e,v,data:bytes):
+    """Output in multiline text-field"""
+    data = data.decode()
 
-def get_encoder_decoder(_,__,v) -> tuple[callable, callable]:
+    if len(data) > 1000000:
+        set_encryption_status(w,e,v,"Output too long","orange")
+        w["OUT_Multiline"]("")
+        return
+
+    w["OUT_Multiline"](data)
+    if v["OUT_Multiline_AutoCopyCLP"]:
+        clp.copy(data)
+
+def set_output_file(w,e,v,data:bytes):
+    """Output for single file"""
+    if pipeline_direction == DIRECTION.DECRYPT:
+        file_data, file_name = Crypto_files.get_data_and_filename(data)
+
+        path = Path(v["OUT_File_BrowseFolder"]) / Path(file_name)
+        path.write_bytes(file_data)
+    else:
+        path = Path(v["OUT_File_BrowseFolder"]) / (Crypto_files.get_random_filename(32) + ".secret")
+        path.write_bytes(data)
+
+def get_encoder_decoder_text(_,__,v) -> tuple[callable, callable]:
     """
     Returns the selected encoder and decoder (Base64, Base16, etc.)
     :return: encoder, decoder
     """
-    # if v["ENC_Plain"]: # Not necessary, since you can't display all those chars anyways
-    #     temp = lambda a:a
-    #     return temp, temp
-
     if v["ENC_Base16"]:
         return base64.b16encode,base64.b16decode
 
     if v["ENC_Base64"]:
         return base64.b64encode,base64.b64decode
 
-def encrypt(w,e,v,data:bytes) -> bytes:
+def encrypt_text(w,e,v,data:bytes) -> bytes:
     """
     Encrypts the data.
     Might be extended in the future
@@ -211,7 +242,7 @@ def encrypt(w,e,v,data:bytes) -> bytes:
     """
     return Crypto_full.encrypt_full(get_password(w,e,v),data)
 
-def decrypt(w,e,v,data:bytes,verify:bool=True) -> bytes:
+def decrypt_text(w,e,v,data:bytes,verify:bool=True) -> bytes:
     """
     Decrypts the data.
     Might be extended in the future
@@ -239,6 +270,17 @@ def set_encryption_status(w,e,v,status:str="Ready",bg_color:str="beige",txt_colo
     w["DecryptionStatus"].update(background_color=bg_color)
     w["DecryptionStatus"].update(text_color=txt_color)
 
+# Provide functions for each stage
+pipeline_input:callable = get_input_text
+pipeline_encoding:callable = base64.b64encode
+pipeline_decoding:callable = base64.b64decode
+pipeline_output:callable = set_output_text
+pipeline_encrypt:callable = encrypt_text
+pipeline_decrypt:callable = decrypt_text
+
+pipeline_direction:DIRECTION = DIRECTION.AUTO
+pipeline_additional_data:dict = dict()  # Can be used to transfer some more parameters via the pipeline
+
 def full_pipeline(w,e,v):
     """
     Handles the full encoding/decoding
@@ -247,48 +289,60 @@ def full_pipeline(w,e,v):
     :param v:
     :return:
     """
-    data_in:bytes = get_input(w,e,v)
+    global pipeline_direction
+    global pipeline_additional_data
+    pipeline_additional_data = dict()
+
+    if v["AutomaticDirection"]:
+        pipeline_direction = DIRECTION.AUTO
+    elif v["Encrypt"]:
+        pipeline_direction = DIRECTION.ENCRYPT
+    else:
+        pipeline_direction = DIRECTION.DECRYPT
+
+    data_in:bytes = pipeline_input(w,e,v)
 
     if not data_in:
         set_encryption_status(w,e,v,status="No input",bg_color="DarkGray",txt_color="black")
         return
 
-    if v["AutomaticDirection"]: # Automatic direction check
+    if pipeline_direction == DIRECTION.AUTO: # Automatic direction check
         try:
             # Decryption
-            crypted_data = get_encoder_decoder(w,e,v)[1](data_in)
-            crypted_data = decrypt(w,e,v,crypted_data)
+            crypted_data = pipeline_decoding(data_in)
+            crypted_data = pipeline_decrypt(w,e,v,crypted_data)
             set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
         except ValueError:
             # Encryption
-            crypted_data = encrypt(w, e, v, data_in)
-            crypted_data = get_encoder_decoder(w, e, v)[0](crypted_data)
+            crypted_data = pipeline_encrypt(w, e, v, data_in)
+            crypted_data = pipeline_encoding(crypted_data)
             set_encryption_status(w, e, v, status="Encrypted", bg_color="LightSkyBlue", txt_color="black")
 
-    elif v["Encrypt"]:  # Normal encryption
-        crypted_data = encrypt(w,e,v,data_in)
-        crypted_data = get_encoder_decoder(w,e,v)[0](crypted_data)
+    elif pipeline_direction == DIRECTION.ENCRYPT:  # Normal encryption
+        crypted_data = pipeline_encrypt(w,e,v,data_in)
+        crypted_data = pipeline_encoding(crypted_data)
         set_encryption_status(w,e,v,status="Encrypted",bg_color="LightSkyBlue",txt_color="black")
     else:
         crypted_data = b""  # So that the IDE doesn't complain
         try:
-            crypted_data = get_encoder_decoder(w, e, v)[1](data_in)
-            crypted_data = decrypt(w, e, v, crypted_data)
+            crypted_data = pipeline_decoding(data_in)
+            crypted_data = pipeline_decrypt(w, e, v, crypted_data)
             set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
         except ValueError:
             try:
-                crypted_data = decrypt(w, e, v, crypted_data, verify=False)
+                crypted_data = pipeline_decrypt(w, e, v, crypted_data, verify=False)
                 set_encryption_status(w, e, v, "Message might be modified!", bg_color="red", txt_color="lime")
             except ValueError:
                 set_encryption_status(w,e,v,"Message has wrong format or is incomplete!",bg_color="orange", txt_color="black")
                 crypted_data = b"Error"
 
     try:
-        set_output(w,e,v,crypted_data)
+        pipeline_output(w,e,v,crypted_data)
     except UnicodeDecodeError:
         set_encryption_status(w, e, v, "Wrong settings or password", bg_color="orange", txt_color="black")
 
 def main():
+    global pipeline_encoding,pipeline_decoding,pipeline_output,pipeline_input,pipeline_encrypt,pipeline_decrypt
 
     w = sg.Window("Cypher Tool",_get_main_layout(),finalize=True,element_justification="center")
     e,v = w.read(timeout=10)
@@ -305,10 +359,11 @@ def main():
 
         ### Abstract ###
 
-        if e in v:
-            print(e,v[e])
-        else:
-            print(e)
+        print(e)
+        # if e in v:
+        #     print(e,v[e])
+        # else:
+        #     print(e)
 
         if callable(e):
             try:
@@ -321,11 +376,53 @@ def main():
                 print("Abstract call error:",ex.__class__.__name__,ex)
 
         ### Non-abstract functionality ###
-        if e in ["Refresh_output","IN_Multiline_CtrlReturn"]:
-            full_pipeline(w,e,v)
-
         if e == "IN_Multiline":
             set_encryption_status(w,e,v)
+
+        if v["OUT_Type"] in ["OUT_Text"]:
+            if v["ENC_Base16"]:
+                pipeline_encoding = base64.b16encode
+            elif v["ENC_Base64"]:
+                pipeline_encoding = base64.b64encode
+        elif v["IN_Type"] == "IN_File":
+            pipeline_encoding = lambda a:a
+        else:
+            pipeline_encoding = lambda a:a
+
+        if v["IN_Type"] in ["IN_Text"]:
+            if v["ENC_Base16"]:
+                pipeline_decoding = base64.b16decode
+            elif v["ENC_Base64"]:
+                pipeline_decoding = base64.b64decode
+        elif v["OUT_Type"] == "OUT_File":
+            pipeline_decoding = decode_file
+        else:
+            pipeline_decoding = lambda a:a
+
+        # Input
+        temp_dict = {
+            "IN_Text":get_input_text,
+            #"IN_File":get_input_file
+        }
+        if v["IN_Type"] in temp_dict:
+            pipeline_input = temp_dict[v["IN_Type"]]
+
+        # Output
+        temp_dict = {
+            "OUT_Text":set_output_text,
+            "OUT_File":set_output_file
+        }
+        if v["OUT_Type"] in temp_dict:
+            pipeline_output = temp_dict[v["OUT_Type"]]
+
+        if e in ["IN_File_Crypt"] and v["IN_File_Path"]:
+            pipeline_input = get_input_file
+            full_pipeline(w,e,v)
+
+        # Execute en-/decryption
+        if e in ["IN_Text_Refresh_Output","IN_Multiline_CtrlReturn"]:
+            full_pipeline(w,e,v)
+
 
     print("Program closing")
 
