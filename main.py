@@ -1,4 +1,3 @@
-import binascii
 import Crypto_full
 import Crypto_files
 import FreeSimpleGUI as sg
@@ -134,21 +133,10 @@ def bind_events(w,*_):
     """
     w["IN_Multiline"].bind("<Control-Return>","_CtrlReturn")
 
-def get_input(_,__,v) -> bytes:
-    """
-    "Reads" the current input
-    :param _:
-    :param __:
-    :param v:
-    :return:
-    """
-    match v["IN_Type"]:
-        case "IN_Text":
-            return v["IN_Multiline"].strip().encode()
-        case "IN_File":
-            ...
-        case "IN_Clipboard":
-            ...
+def get_input_text(w,e,v) -> bytes:
+    """Multiline input"""
+    return v["IN_Multiline"].strip().encode()
+
 
 def get_password(_,__,v) -> str:
     """
@@ -172,11 +160,11 @@ def set_output(w,_,v,data:bytes) -> None:
     :return:
     """
     match v["OUT_Type"]:
-        case "OUT_Text":
-            data = data.decode()
-            w["OUT_Multiline"](data)
-            if v["OUT_Multiline_AutoCopyCLP"]:
-                clp.copy(data)
+        # case "OUT_Text":
+        #     data = data.decode()
+        #     w["OUT_Multiline"](data)
+        #     if v["OUT_Multiline_AutoCopyCLP"]:
+        #         clp.copy(data)
         case "OUT_File":
             ...
         case "OUT_Clipboard":
@@ -184,15 +172,18 @@ def set_output(w,_,v,data:bytes) -> None:
         case "OUT_Tempfile":
             ...
 
-def get_encoder_decoder(_,__,v) -> tuple[callable, callable]:
+def set_output_text(w,e,v,data:bytes):
+    """Output in multiline text-field"""
+    data = data.decode()
+    w["OUT_Multiline"](data)
+    if v["OUT_Multiline_AutoCopyCLP"]:
+        clp.copy(data)
+
+def get_encoder_decoder_text(_,__,v) -> tuple[callable, callable]:
     """
     Returns the selected encoder and decoder (Base64, Base16, etc.)
     :return: encoder, decoder
     """
-    # if v["ENC_Plain"]: # Not necessary, since you can't display all those chars anyways
-    #     temp = lambda a:a
-    #     return temp, temp
-
     if v["ENC_Base16"]:
         return base64.b16encode,base64.b16decode
 
@@ -240,8 +231,9 @@ def set_encryption_status(w,e,v,status:str="Ready",bg_color:str="beige",txt_colo
     w["DecryptionStatus"].update(text_color=txt_color)
 
 # Provide functions for each stage
-_neutral = lambda w,e,v:None
-pipeline_input:callable = get_input
+_neutralWEV = lambda w, e, v:None
+_neutralAA = lambda a:a
+pipeline_input:callable = get_input_text
 pipeline_encoding:callable = base64.b64encode
 pipeline_decoding:callable = base64.b64decode
 pipeline_output:callable = set_output
@@ -298,6 +290,7 @@ def full_pipeline(w,e,v):
         set_encryption_status(w, e, v, "Wrong settings or password", bg_color="orange", txt_color="black")
 
 def main():
+    global pipeline_encoding,pipeline_decoding,pipeline_output,pipeline_input,pipeline_encrypt,pipeline_decrypt
 
     w = sg.Window("Cypher Tool",_get_main_layout(),finalize=True,element_justification="center")
     e,v = w.read(timeout=10)
@@ -330,11 +323,38 @@ def main():
                 print("Abstract call error:",ex.__class__.__name__,ex)
 
         ### Non-abstract functionality ###
+        if e == "IN_Multiline":
+            set_encryption_status(w,e,v)
+
+        if v["IN_Type"] in ["IN_Text"] and e in ["IN_Type","ENC_Base16","ENC_Base64"]:
+            match e:
+                case "ENC_Base16":
+                    pipeline_encoding = base64.b16encode
+                    pipeline_decoding = base64.b16decode
+                case "ENC_Base64":
+                    pipeline_encoding = base64.b64encode
+                    pipeline_decoding = base64.b64decode
+
+        # Input
+        temp_dict = {
+            "IN_Text":get_input_text,
+            #"IN_File":get_input_file
+        }
+        if v["IN_Type"] in temp_dict:
+            pipeline_input = temp_dict[v["IN_Type"]]
+
+        # Output
+        temp_dict = {
+            "OUT_Text":set_output_text,
+            #"OUT_File":set_output_file
+        }
+        if v["OUT_Type"] in temp_dict:
+            pipeline_output = temp_dict[v["OUT_Type"]]
+
+        # Execute en-/decryption
         if e in ["Refresh_output","IN_Multiline_CtrlReturn"]:
             full_pipeline(w,e,v)
 
-        if e == "IN_Multiline":
-            set_encryption_status(w,e,v)
 
     print("Program closing")
 
