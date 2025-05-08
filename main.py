@@ -3,6 +3,8 @@ import Crypto_files
 import FreeSimpleGUI as sg
 import base64
 import clipboard as clp
+from functools import partial
+from pathlib import Path
 
 def throw_event(w:sg.Window,event:str,value:any=None):
     """
@@ -47,7 +49,9 @@ def _get_main_layout():
 
     tab_in_file = sg.Tab("File (WIP)",[ # Todo
         [
-            sg.FileBrowse()
+            sg.FileBrowse("Select file",target="IN_File_Path"),
+            sg.In(key="IN_File_Path",enable_events=True,expand_x=True),
+            sg.Button("En-/Decrypt",key="IN_File_Crypt")
         ]
     ],element_justification="center",key="IN_File")
 
@@ -137,6 +141,13 @@ def get_input_text(w,e,v) -> bytes:
     """Multiline input"""
     return v["IN_Multiline"].strip().encode()
 
+def get_input_file(w,e,v) -> bytes:
+    """Single file"""
+    path = Path(v["IN_File_Path"])
+
+    if path.exists():
+        return path.read_bytes()
+    return b""
 
 def get_password(_,__,v) -> str:
     """
@@ -175,6 +186,12 @@ def set_output(w,_,v,data:bytes) -> None:
 def set_output_text(w,e,v,data:bytes):
     """Output in multiline text-field"""
     data = data.decode()
+
+    if len(data) > 10000:
+        set_encryption_status(w,e,v,"Output too long","orange")
+        w["OUT_Multiline"]("")
+        return
+
     w["OUT_Multiline"](data)
     if v["OUT_Multiline_AutoCopyCLP"]:
         clp.copy(data)
@@ -190,7 +207,7 @@ def get_encoder_decoder_text(_,__,v) -> tuple[callable, callable]:
     if v["ENC_Base64"]:
         return base64.b64encode,base64.b64decode
 
-def encrypt(w,e,v,data:bytes) -> bytes:
+def encrypt_text(w,e,v,data:bytes) -> bytes:
     """
     Encrypts the data.
     Might be extended in the future
@@ -202,7 +219,7 @@ def encrypt(w,e,v,data:bytes) -> bytes:
     """
     return Crypto_full.encrypt_full(get_password(w,e,v),data)
 
-def decrypt(w,e,v,data:bytes,verify:bool=True) -> bytes:
+def decrypt_text(w,e,v,data:bytes,verify:bool=True) -> bytes:
     """
     Decrypts the data.
     Might be extended in the future
@@ -231,14 +248,12 @@ def set_encryption_status(w,e,v,status:str="Ready",bg_color:str="beige",txt_colo
     w["DecryptionStatus"].update(text_color=txt_color)
 
 # Provide functions for each stage
-_neutralWEV = lambda w, e, v:None
-_neutralAA = lambda a:a
 pipeline_input:callable = get_input_text
 pipeline_encoding:callable = base64.b64encode
 pipeline_decoding:callable = base64.b64decode
 pipeline_output:callable = set_output
-pipeline_encrypt:callable = encrypt
-pipeline_decrypt:callable = decrypt
+pipeline_encrypt:callable = encrypt_text
+pipeline_decrypt:callable = decrypt_text
 
 def full_pipeline(w,e,v):
     """
@@ -350,6 +365,10 @@ def main():
         }
         if v["OUT_Type"] in temp_dict:
             pipeline_output = temp_dict[v["OUT_Type"]]
+
+        if e in ["IN_File_Crypt"]:
+            pipeline_input = get_input_file
+            full_pipeline(w,e,v)
 
         # Execute en-/decryption
         if e in ["Refresh_output","IN_Multiline_CtrlReturn"]:
