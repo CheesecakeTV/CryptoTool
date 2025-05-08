@@ -61,6 +61,14 @@ def encrypt_file_full(key:str, file_path:str, output_folder:str = None, new_file
 
     return output_data_file.as_posix()
 
+def get_data_and_filename(data:bytes) -> tuple[bytes,str]:
+    len_name = ord(data[0:1])
+    file_name = data[1:len_name + 1].decode()
+    file_data = data[len_name + 1:]
+
+    return file_data, file_name
+
+
 def decrypt_file(key:str, data:bytes, security_multiplier:int = 1) -> tuple[bytes,str]:
     """
 
