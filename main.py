@@ -64,6 +64,9 @@ def _get_main_layout():
             sg.FileBrowse("Select file",target="IN_File_Path"),
             sg.In(key="IN_File_Path",enable_events=True,expand_x=True),
             sg.Button("En-/Decrypt",key="IN_File_Crypt")
+        ],[
+            sg.T("The filename will be lost when outputting to Text", background_color="beige", text_color="black",
+                 key="IN_File_WarningFilename")
         ]
     ],element_justification="center",key="IN_File")
 
@@ -94,7 +97,8 @@ def _get_main_layout():
             sg.Multiline(key="OUT_Multiline",size=_multiline_size,disabled=True),
         ],[
             sg.Button("Copy to clipboard",key=lambda _,__,v:clp.copy(v["OUT_Multiline"])),
-            sg.Checkbox("Automatically copy to clipboard",key="OUT_Multiline_AutoCopyCLP")
+            sg.Checkbox("Automatically copy to clipboard",key="OUT_Multiline_AutoCopyCLP"),
+            sg.T("Filename: ...",visible=False,key="OUT_Multiline_Filename",background_color="beige",text_color="black")
         ]
     ],key="OUT_Text")
 
@@ -103,7 +107,7 @@ def _get_main_layout():
             sg.FolderBrowse("Browse folder",target="OUT_File_BrowseFolder"),
             sg.In(key="OUT_File_BrowseFolder",enable_events=True,expand_x=True),
             sg.Button("Oben in Explorer",key=lambda w,e,v:os.system(f"start {Path(v['OUT_File_BrowseFolder']) if v['OUT_File_BrowseFolder'] else os.getcwd()}"))
-        ]
+        ],
     ],key="OUT_File")
 
     tab_out_tempfile = sg.Tab("Tempfile",[
@@ -176,6 +180,8 @@ def get_input_file(w,e,v) -> bytes:
     if not path.exists():
         return b""
 
+    pipeline_additional_data["Input_File"] = True
+
     if (pipeline_direction == DIRECTION.ENCRYPT
             or (pipeline_direction == DIRECTION.AUTO and not path.name.endswith(".secret"))): # Read and put filename in front
         pipeline_direction = DIRECTION.ENCRYPT
@@ -206,12 +212,20 @@ def get_password(_,__,v) -> str:
 
 def set_output_text(w,e,v,data:bytes):
     """Output in multiline text-field"""
-    data = data.decode()
 
     if len(data) > 1000000:
         set_encryption_status(w,e,v,"Output too long","orange")
         w["OUT_Multiline"]("")
         return
+
+    if pipeline_additional_data.get("Input_File") and pipeline_direction == DIRECTION.DECRYPT:
+        data,file_name = Crypto_files.get_data_and_filename(data)
+        w["OUT_Multiline_Filename"].update(visible=True)
+        w["OUT_Multiline_Filename"]("Filename: " + file_name)
+    else:
+        w["OUT_Multiline_Filename"].update(visible=False)
+
+    data = data.decode()
 
     w["OUT_Multiline"](data)
     if v["OUT_Multiline_AutoCopyCLP"]:
@@ -443,6 +457,8 @@ def main():
             pipeline_decoding = decode_file
         else:
             pipeline_decoding = lambda a:a
+
+        w["IN_File_WarningFilename"].update(visible= v["OUT_Type"] == "OUT_Text")
 
         # Input
         temp_dict = {
