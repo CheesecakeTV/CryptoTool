@@ -1,4 +1,7 @@
 import os
+
+from optree.functools import partial
+
 import Crypto_full
 import Crypto_files
 import FreeSimpleGUI as sg
@@ -101,11 +104,12 @@ def _get_main_layout():
         ]
     ],key="OUT_File")
 
-    tab_out_tempfile = sg.Tab("Tempfile (WIP)",[
+    tab_out_tempfile = sg.Tab("Tempfile",[
         [
-            sg.Radio("View file",key="TMP_View_File",group_id="Tempfile"),
-            sg.T("Ending:"),
-            sg.In(key="TMP_View_File_Ending"),
+            sg.T("The file will be saved, opened and deleted after 5 minutes.\nIt will also be deleted once you close the program or reboot.")
+            # sg.Radio("View file",key="TMP_View_File",group_id="Tempfile",default=True),
+            # sg.T("Ending:"),
+            # sg.In(key="TMP_View_File_Ending"),
         ]
     ],key="OUT_Tempfile") # Todo # File that gets opened once and deleted after
 
@@ -207,8 +211,9 @@ def set_output_text(w,e,v,data:bytes):
     if v["OUT_Multiline_AutoCopyCLP"]:
         clp.copy(data)
 
-def set_output_file(w,e,v,data:bytes):
-    """Output for single file"""
+def set_output_file(w,e,v,data:bytes,tempfile:bool=False):
+    """Output for single file or tempfile"""
+
     try:
         if pipeline_direction == DIRECTION.DECRYPT:
             file_data, file_name = Crypto_files.get_data_and_filename(data)
@@ -404,7 +409,7 @@ def main():
                 pipeline_encoding = base64.b16encode
             elif v["ENC_Base64"]:
                 pipeline_encoding = base64.b64encode
-        elif v["OUT_Type"] == "OUT_File":
+        elif v["OUT_Type"] in ["OUT_File","OUT_Tempfile"]:
             pipeline_encrypt = encrypt_file
             pipeline_encoding = lambda a:a
         else:
@@ -431,7 +436,8 @@ def main():
         # Output
         temp_dict = {
             "OUT_Text":set_output_text,
-            "OUT_File":set_output_file
+            "OUT_File":set_output_file,
+            "OUT_Tempfile":partial(set_output_file,tempfile=True)
         }
         if v["OUT_Type"] in temp_dict:
             pipeline_output = temp_dict[v["OUT_Type"]]

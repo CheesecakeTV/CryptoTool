@@ -17,8 +17,8 @@ with open(name,"wb") as f:
     f.write(raw)
 
 #os.system(name)
-os.system("start " + direct.name)
-input()
+os.system("start " + name)
+time.sleep(10)
 
 #file.close()
 #os.system(file.name)
