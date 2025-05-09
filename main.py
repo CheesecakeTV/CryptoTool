@@ -154,6 +154,7 @@ def bind_events(w,*_):
 
 def get_input_text(w,e,v) -> bytes:
     """Multiline input"""
+    pipeline_additional_data["Filename"] = "Message.txt"
     return v["IN_Multiline"].strip().encode()
 
 def get_input_file(w,e,v) -> bytes:
@@ -165,15 +166,14 @@ def get_input_file(w,e,v) -> bytes:
     if not path.exists():
         return b""
 
-    pipeline_additional_data["File"] = True
-
     if (pipeline_direction == DIRECTION.ENCRYPT
             or (pipeline_direction == DIRECTION.AUTO and not path.name.endswith(".secret"))): # Read and put filename in front
         pipeline_direction = DIRECTION.ENCRYPT
-        return chr(len(path.name)).encode() + path.name.encode() + path.read_bytes()
+        pipeline_additional_data["Filename"] = path.name
     else: # Only read
         pipeline_direction = DIRECTION.DECRYPT
-        return path.read_bytes()
+
+    return path.read_bytes()
 
 def decode_file(data:bytes) -> bytes:
     """Extract file-data"""
@@ -213,8 +213,17 @@ def set_output_file(w,e,v,data:bytes):
         if pipeline_direction == DIRECTION.DECRYPT:
             file_data, file_name = Crypto_files.get_data_and_filename(data)
 
-            path = Path(v["OUT_File_BrowseFolder"]) / Path(file_name)
-            path.write_bytes(file_data)
+            name_path = Path(file_name)
+            if (not "." in file_name) or len(name_path.parts) > 1:
+                # Data doesn't seem to be in the file-format
+                name_path = "Message.txt"
+                file_data = data
+
+            path = Path(v["OUT_File_BrowseFolder"]) / name_path
+            try:
+                path.write_bytes(file_data)
+            except FileNotFoundError:
+                (Path(v["OUT_File_BrowseFolder"]) / Path("Message.txt")).write_bytes(data)
         else:
             path = Path(v["OUT_File_BrowseFolder"]) / (Crypto_files.get_random_filename(32) + ".secret")
             path.write_bytes(data)
@@ -243,6 +252,11 @@ def encrypt_text(w,e,v,data:bytes) -> bytes:
     :return:
     """
     return Crypto_full.encrypt_full(get_password(w,e,v),data)
+
+def encrypt_file(w,e,v,data:bytes) -> bytes:
+    """Append some filename in case none is included already"""
+    name = pipeline_additional_data.get("Filename","message.txt")
+    return encrypt_text(w,e,v,chr(len(name)).encode() + name.encode() + data)
 
 def decrypt_text(w,e,v,data:bytes,verify:bool=True) -> bytes:
     """
@@ -276,9 +290,9 @@ def set_encryption_status(w,e,v,status:str="Ready",bg_color:str="beige",txt_colo
 pipeline_input:callable = get_input_text
 pipeline_encoding:callable = base64.b64encode
 pipeline_decoding:callable = base64.b64decode
-pipeline_output:callable = set_output_text
 pipeline_encrypt:callable = encrypt_text
 pipeline_decrypt:callable = decrypt_text
+pipeline_output:callable = set_output_text
 
 pipeline_direction:DIRECTION = DIRECTION.AUTO
 pipeline_additional_data:dict = dict()  # Can be used to transfer some more parameters via the pipeline
@@ -311,11 +325,13 @@ def full_pipeline(w,e,v):
     if pipeline_direction == DIRECTION.AUTO: # Automatic direction check
         try:
             # Decryption
+            pipeline_direction = DIRECTION.DECRYPT
             crypted_data = pipeline_decoding(data_in)
             crypted_data = pipeline_decrypt(w,e,v,crypted_data)
             set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
         except ValueError:
             # Encryption
+            pipeline_direction = DIRECTION.ENCRYPT
             crypted_data = pipeline_encrypt(w, e, v, data_in)
             crypted_data = pipeline_encoding(crypted_data)
             set_encryption_status(w, e, v, status="Encrypted", bg_color="LightSkyBlue", txt_color="black")
@@ -382,11 +398,14 @@ def main():
             set_encryption_status(w,e,v)
 
         if v["OUT_Type"] in ["OUT_Text"]:
+            pipeline_encrypt = encrypt_text
+
             if v["ENC_Base16"]:
                 pipeline_encoding = base64.b16encode
             elif v["ENC_Base64"]:
                 pipeline_encoding = base64.b64encode
-        elif v["IN_Type"] == "IN_File":
+        elif v["OUT_Type"] == "OUT_File":
+            pipeline_encrypt = encrypt_file
             pipeline_encoding = lambda a:a
         else:
             pipeline_encoding = lambda a:a
@@ -396,7 +415,7 @@ def main():
                 pipeline_decoding = base64.b16decode
             elif v["ENC_Base64"]:
                 pipeline_decoding = base64.b64decode
-        elif v["OUT_Type"] == "OUT_File":
+        elif v["IN_Type"] == "IN_File":
             pipeline_decoding = decode_file
         else:
             pipeline_decoding = lambda a:a
