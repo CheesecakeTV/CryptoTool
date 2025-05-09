@@ -1,0 +1,6 @@
+- File as key (Password)
+- Generate key-file
+- Directly paste image from clipboard
+- Connect to email service
+
+Password-manager

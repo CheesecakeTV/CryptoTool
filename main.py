@@ -1,7 +1,5 @@
 import os
-
 from optree.functools import partial
-
 import Crypto_full
 import Crypto_files
 import FreeSimpleGUI as sg
