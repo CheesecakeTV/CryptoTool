@@ -10,6 +10,8 @@ import clipboard as clp
 from pathlib import Path
 from enum import Enum
 
+import Crypto_tempfiles
+
 sg.theme("DarkGray11")
 
 class DIRECTION(Enum):
@@ -71,7 +73,7 @@ def _get_main_layout():
         ],[
             sg.Button("Image from clipboard", key="Clipboard_Image", size=_button_size),
         ]
-    ],element_justification="center",key="IN_Clipboard")
+    ],element_justification="center",key="IN_Clipboard",visible=False)
 
     tab_in_email = sg.Tab("Mail (WIP)",[ # Todo
         [
@@ -85,7 +87,7 @@ def _get_main_layout():
         ],[
             sg.Button("Image to clipboard", key="Clipboard_out_Image", size=_button_size),
         ]
-    ],element_justification="center",key="OUT_Clipboard")
+    ],element_justification="center",key="OUT_Clipboard",visible=False)
 
     tab_out_multiline = sg.Tab("Text",[
         [
@@ -110,8 +112,12 @@ def _get_main_layout():
             # sg.Radio("View file",key="TMP_View_File",group_id="Tempfile",default=True),
             # sg.T("Ending:"),
             # sg.In(key="TMP_View_File_Ending"),
+        ],[
+            sg.T("When encrypting, the folder will open so you can access the file.")
+        ],[
+            sg.Checkbox("Alyways open folder instead of file",key="OUT_Tempfile_AlwaysOpenFolder",default=False)
         ]
-    ],key="OUT_Tempfile") # Todo # File that gets opened once and deleted after
+    ],key="OUT_Tempfile")
 
     tab_password_Text = sg.Tab("Text",[
         [
@@ -221,8 +227,15 @@ def set_output_file(w,e,v,data:bytes,tempfile:bool=False):
             name_path = Path(file_name)
             if (not "." in file_name) or len(name_path.parts) > 1:
                 # Data doesn't seem to be in the file-format
-                name_path = "Message.txt"
+                name_path = Path("Message.txt")
                 file_data = data
+
+            if tempfile:
+                if name_path.name.endswith(".secret"):
+                    v["OUT_Tempfile_AlwaysOpenFolder"] = True   # Yeah, I know...
+
+                Crypto_tempfiles.view_file_for_time(file_data,name_path.name,open_folder=v["OUT_Tempfile_AlwaysOpenFolder"])    # Todo: Add way to change duration
+                return
 
             path = Path(v["OUT_File_BrowseFolder"]) / name_path
             try:
@@ -230,7 +243,13 @@ def set_output_file(w,e,v,data:bytes,tempfile:bool=False):
             except FileNotFoundError:
                 (Path(v["OUT_File_BrowseFolder"]) / Path("Message.txt")).write_bytes(data)
         else:
-            path = Path(v["OUT_File_BrowseFolder"]) / (Crypto_files.get_random_filename(32) + ".secret")
+            name_path = Path(Crypto_files.get_random_filename(32) + ".secret")
+
+            if tempfile:
+                Crypto_tempfiles.view_file_for_time(data,name_path.name,open_folder=True)
+                return
+
+            path = Path(v["OUT_File_BrowseFolder"]) / name_path
             path.write_bytes(data)
     except PermissionError:
         set_encryption_status(w,e,v,"Permission error!","red")
