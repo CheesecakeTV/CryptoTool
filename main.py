@@ -1,14 +1,14 @@
 import os
-from optree.functools import partial
+from functools import partial
 import Crypto_full
 import Crypto_files
+import Crypto_tempfiles
 import FreeSimpleGUI as sg
 import base64
 import clipboard as clp
 from pathlib import Path
 from enum import Enum
 
-import Crypto_tempfiles
 
 sg.theme("DarkGray11")
 
