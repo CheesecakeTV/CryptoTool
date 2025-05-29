@@ -87,7 +87,22 @@ def _load_entries() -> set[Entry]:
         )
     )
 
-x = Entry("Hi")
-print(x)
-print(_load_entries())
+def _save_entries(entries:set[Entry]):
+    """
+    Saves the entries encrypted to the file
+    :param entries:
+    :return:
+    """
+    if get_password() is None:
+        return None
+
+    manager_data.write_bytes(
+        encrypt_full(
+            password,
+            pickle.dumps(entries),
+            security_multiplier=security_multiplier,
+        )
+    )
+
+
 
