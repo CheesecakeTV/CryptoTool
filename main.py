@@ -1,4 +1,5 @@
 import os
+from collections.abc import Iterable
 from functools import partial
 from FreeSimpleGUI import Element
 
@@ -6,6 +7,8 @@ import Crypto_full
 import Crypto_files
 import Crypto_tempfiles
 import Crypto_DiffieHellman
+import Passwordmanager
+from Passwordmanager import Entry
 import FreeSimpleGUI as sg
 import base64
 import clipboard as clp
@@ -29,6 +32,14 @@ def throw_event(w:sg.Window,event:str,value:any=None):
     :return:
     """
     w.write_event_value(event,value)
+
+pw_manager_save_keys = {
+    "ENC_Base32",
+    "ENC_Base64",
+    "password_text",
+    "Key_Exc_Status",
+    "PW_Type",
+}
 
 def _get_main_layout() -> list[list[Element]]:
     """Main layout"""
@@ -71,7 +82,7 @@ def _get_main_layout() -> list[list[Element]]:
         ]
     ],element_justification="center",key="IN_File")
 
-    tab_in_clipboard = sg.Tab("Clipboard (WIP)",[ # Todo
+    tab_in_clipboard = sg.Tab("Clipboard (WIP)",[
         [
             sg.Button("Text from clipboard",key="Clipboard_Text",size=(_button_size:=(20,0))),
         ],[
@@ -79,13 +90,13 @@ def _get_main_layout() -> list[list[Element]]:
         ]
     ],element_justification="center",key="IN_Clipboard",visible=False)
 
-    tab_in_email = sg.Tab("Mail (WIP)",[ # Todo
+    tab_in_email = sg.Tab("Mail (WIP)",[
         [
             sg.T("WIP")
         ]
     ])
 
-    tab_out_clipboard = sg.Tab("Clipboard (WIP)",[ # Todo
+    tab_out_clipboard = sg.Tab("Clipboard (WIP)",[
         [
             sg.Button("Text to clipboard",key="Clipboard_out_Text",size=(_button_size:=(20,0))),
         ],[
@@ -155,16 +166,32 @@ def _get_main_layout() -> list[list[Element]]:
             sg.T("",key="DecryptionStatus")
         ],[
             sg.TabGroup([[tab_out_multiline,tab_out_file,tab_out_clipboard,tab_out_tempfile]],key="OUT_Type",expand_y=True,enable_events=True),
-            sg.Frame("Password",
-                     [[sg.TabGroup([[
-                         tab_password_Text,tab_key_exchange,
-                     ]],key="PW_Type")]],
-                     expand_y=True,
-            )
+            sg.Frame("Password",[
+                [
+                    sg.TabGroup([[tab_password_Text,tab_key_exchange,]],key="PW_Type")
+                ],[
+                    sg.Button("Save to Manager",key="PW_SaveToManager"),
+                ],[
+                    sg.Button("Load from Manager",key="PW_OpenManager")
+                ]
+            ],expand_y=True,)
         ]
     ]
 
     return layout
+
+def get_dict_from_dict(from_dict:dict, keys:Iterable) -> dict:
+    """
+    Returns a dict with values from keys
+    :param from_dict:
+    :param keys:
+    :return:
+    """
+    return {
+        key:val
+        for key,val in from_dict.items()
+        if key in keys
+    }
 
 def bind_events(w,*_):
     """
@@ -186,7 +213,7 @@ def get_input_file(w,e,v) -> bytes:
     global pipeline_direction
 
     path = Path(v["IN_File_Path"])
-    print(path.name)
+
     if not path.exists():
         return b""
 
@@ -263,7 +290,7 @@ def set_output_file(w,e,v,data:bytes,tempfile:bool=False):
                 if name_path.name.endswith(".secret"):
                     v["OUT_Tempfile_AlwaysOpenFolder"] = True   # Yeah, I know...
 
-                Crypto_tempfiles.view_file_for_time(file_data,name_path.name,open_folder=v["OUT_Tempfile_AlwaysOpenFolder"])    # Todo: Add way to change duration
+                Crypto_tempfiles.view_file_for_time(file_data,name_path.name,open_folder=v["OUT_Tempfile_AlwaysOpenFolder"])
                 return
 
             path = Path(v["OUT_File_BrowseFolder"]) / name_path
@@ -453,6 +480,33 @@ def main():
                 continue
             except Exception as ex:
                 print("Abstract call error:",ex.__class__.__name__,ex)
+
+
+        ### Password-manager
+
+        if e == "PW_SaveToManager":
+            data = get_dict_from_dict(v,pw_manager_save_keys)
+            data["Exchanged_key"] = exchanged_key
+
+            Passwordmanager.new_entry(data)
+
+        if e == "PW_OpenManager":
+            _ = Passwordmanager.passwordmanager()
+
+            if _ is None:
+                continue
+
+            if _.get("Exchanged_key"):
+                exchanged_key = _["Exchanged_key"]
+                w["Key_Exc_Status"]("Key present!")
+                w["Key_Exc_Status"].update(background_color = "lime")
+
+            w[_["PW_Type"]].select()
+
+            for key in pw_manager_save_keys:
+                if key in _:
+                    w[key](_[key])
+
 
         ### Non-abstract functionality ###
 

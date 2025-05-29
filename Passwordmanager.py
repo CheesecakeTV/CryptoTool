@@ -145,16 +145,36 @@ def _entries_to_table(entries:Iterable[Entry]) -> list[list[str]]:
         ] for e in entries
     ]
 
-def new_entry(title:str,subtitle:str,data:dict) -> bool:
+def new_entry(data:dict) -> bool:
     """
     Create a new password-entry
-    :param title:
-    :param subtitle:
     :param data:
     :return:
     """
-    title = title.strip()
-    subtitle = subtitle.strip()
+
+    layout = [
+        [
+            sg.T("Title:",size=(10,0)),
+            sg.In(key="Title")
+        ],[
+            sg.T("Subtitle:",size=(10,0)),
+            sg.In(key="Subtitle")
+        ],[
+            sg.Button("Save")
+        ]
+    ]
+
+    w = sg.Window("New Entry",layout,finalize=True)
+    e,v = w.read()
+
+    if e is None:
+        return False
+
+    v = v.copy()
+    w.close()
+
+    title = v["Title"].strip()
+    subtitle = v["Subtitle"].strip()
 
     if _get_password() is None:
         return False
@@ -210,4 +230,6 @@ def passwordmanager() -> dict|None:
             return None
 
 
+if __name__ == "__main__":
+    passwordmanager()
 
