@@ -40,6 +40,11 @@ def _get_password() -> str|None:
         if not answer:
             return None
 
+        sg.theme("DarkGray11")
+        if answer != sg.popup_get_text("Please Repeat password:", font="Any 12", keep_on_top=True, password_char="*"):
+            sg.popup_error("Entered passwords do not match!",font="Any 12")
+            return None
+
         _password = answer
 
         manager_data.write_bytes(

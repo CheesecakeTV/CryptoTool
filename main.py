@@ -170,9 +170,9 @@ def _get_main_layout() -> list[list[Element]]:
                 [
                     sg.TabGroup([[tab_password_Text,tab_key_exchange,]],key="PW_Type")
                 ],[
-                    sg.Button("Save to Manager",key="PW_SaveToManager"),
+                    sg.Button("Save to Manager",key="PW_SaveToManager",expand_x=True),
                 ],[
-                    sg.Button("Load from Manager",key="PW_OpenManager")
+                    sg.Button("Load from Manager/\nManage passwords",key="PW_OpenManager",size=(0,2),expand_x=True)
                 ]
             ],expand_y=True,)
         ]
