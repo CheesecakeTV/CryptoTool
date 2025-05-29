@@ -7,6 +7,7 @@ from Crypto_full import encrypt_full,decrypt_full
 
 manager_data = appdata / "Passwordmanager.pm"
 password:str|None = None
+security_multiplier = 3
 
 @dataclass
 class Entry:
@@ -33,19 +34,38 @@ def get_password() -> str|None:
         answer = sg.popup_get_text("First time using password-manager.\n"
                                    "Please set a password.\n"
                                    "\nAttention!\nIf you forget the password,\nyou can't access the passwordmanager\nwithout deleting all saved entries."
-                                   , title="Setup Password", font="Any 12",keep_on_top=True)
+                                   , title="Setup Password", font="Any 12",keep_on_top=True,password_char="*")
 
         if not answer:
             return None
 
         password = answer
 
+        manager_data.write_bytes(
+            encrypt_full(
+                password,
+                pickle.dumps(set()),
+                security_multiplier=security_multiplier
+            )
+        )
+
     elif password is None:
-        answer = sg.popup_get_text("Enter password for passwordmanager",title="Password",font="Any 12")
+        answer = sg.popup_get_text("Enter password for passwordmanager",title="Password",font="Any 12",password_char="*")
         if answer is None:
             return None
 
         password = answer
+
+    try:
+        decrypt_full(
+            password,
+            manager_data.read_bytes(),
+            security_multiplier=security_multiplier,
+        )
+    except ValueError:
+        sg.popup_error("Wrong password, or file was modified!")
+        password = None
+        return get_password()
 
     return password
 
@@ -57,4 +77,4 @@ def _load_entries() -> set[Entry]:
     ...
 
 print(manager_data)
-get_password()
+print(get_password())
