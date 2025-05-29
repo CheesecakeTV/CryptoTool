@@ -1,5 +1,5 @@
 from Globals import appdata
-from dataclasses import dataclass
+from dataclasses import dataclass,field
 import FreeSimpleGUI as sg
 import pickle
 from datetime import datetime as dt
@@ -12,9 +12,9 @@ security_multiplier = 3
 @dataclass
 class Entry:
     Title:str       # More of a group name
-    Subtitle:str    # Specified usage
-    Created:dt  # Time created
-    data:dict
+    Subtitle:str=""    # Specified usage
+    Created:dt=field(default_factory=dt.now)  # Time created
+    data:dict=field(default_factory=dict)
 
     def __hash__(self):
         return hash((self.Title,self.Subtitle))
@@ -50,6 +50,7 @@ def get_password() -> str|None:
         )
 
     elif password is None:
+        sg.theme("DarkGray11")
         answer = sg.popup_get_text("Enter password for passwordmanager",title="Password",font="Any 12",password_char="*")
         if answer is None:
             return None
@@ -63,7 +64,8 @@ def get_password() -> str|None:
             security_multiplier=security_multiplier,
         )
     except ValueError:
-        sg.popup_error("Wrong password, or file was modified!")
+        sg.theme("DarkGray11")
+        sg.popup_error("Wrong password, or file was modified!",font="Any 12")
         password = None
         return get_password()
 
@@ -74,7 +76,18 @@ def _load_entries() -> set[Entry]:
     Returns saved passwords
     :return:
     """
-    ...
+    if get_password() is None:
+        return set()
 
-print(manager_data)
-print(get_password())
+    return pickle.loads(
+        decrypt_full(
+            password,
+            manager_data.read_bytes(),
+            security_multiplier=security_multiplier
+        )
+    )
+
+x = Entry("Hi")
+print(x)
+print(_load_entries())
+
