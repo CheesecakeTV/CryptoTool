@@ -34,7 +34,7 @@ def _get_password() -> str|None:
         sg.theme("DarkGray11")
         answer = sg.popup_get_text("First time using password-manager.\n"
                                    "Please set a password.\n"
-                                   "\nAttention!\nIf you forget the _password,\nyou can't access the passwordmanager\nwithout deleting all saved entries."
+                                   "\nAttention!\nIf you forget the password,\nyou can't access the passwordmanager\nwithout deleting all saved entries."
                                    , title="Setup Password", font="Any 12",keep_on_top=True,password_char="*")
 
         if not answer:

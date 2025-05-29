@@ -8,7 +8,7 @@ import Crypto_files
 import Crypto_tempfiles
 import Crypto_DiffieHellman
 import Passwordmanager
-from Passwordmanager import Entry
+from Passwordmanager import Entry   # Necessary, don't remove!
 import FreeSimpleGUI as sg
 import base64
 import clipboard as clp
