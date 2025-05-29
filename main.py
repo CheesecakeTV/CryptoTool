@@ -47,8 +47,8 @@ def _get_main_layout() -> list[list[Element]]:
         "enable_events":True,
     }
     frame_encoding = [
-        [sg.Radio("Base16", key="ENC_Base16", tooltip="Works for most chats",**_radio_args)],
-        [sg.Radio("Base64",key="ENC_Base64",tooltip="Works for many chats and is smaller",default=True,**_radio_args)],
+        [sg.Radio("Base32", key="ENC_Base32", tooltip="Works for most chats",default=True,**_radio_args)],
+        [sg.Radio("Base64",key="ENC_Base64",tooltip="Works for many chats and is smaller",**_radio_args)],
     ]
 
     tab_in_multiline = sg.Tab("Text",[
@@ -289,8 +289,8 @@ def get_encoder_decoder_text(_,__,v) -> tuple[callable, callable]:
     Returns the selected encoder and decoder (Base64, Base16, etc.)
     :return: encoder, decoder
     """
-    if v["ENC_Base16"]:
-        return base64.b16encode,base64.b16decode
+    if v["ENC_Base32"]:
+        return base64.b32encode,base64.b32decode
 
     if v["ENC_Base64"]:
         return base64.b64encode,base64.b64decode
@@ -469,8 +469,8 @@ def main():
         if v["OUT_Type"] in ["OUT_Text"]:
             pipeline_encrypt = encrypt_text
 
-            if v["ENC_Base16"]:
-                pipeline_encoding = base64.b16encode
+            if v["ENC_Base32"]:
+                pipeline_encoding = base64.b32encode
             elif v["ENC_Base64"]:
                 pipeline_encoding = base64.b64encode
         elif v["OUT_Type"] in ["OUT_File","OUT_Tempfile"]:
@@ -480,8 +480,8 @@ def main():
             pipeline_encoding = lambda a:a
 
         if v["IN_Type"] in ["IN_Text"]:
-            if v["ENC_Base16"]:
-                pipeline_decoding = base64.b16decode
+            if v["ENC_Base32"]:
+                pipeline_decoding = base64.b32decode
             elif v["ENC_Base64"]:
                 pipeline_decoding = base64.b64decode
         elif v["IN_Type"] == "IN_File":
