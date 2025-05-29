@@ -1,6 +1,5 @@
 import os
 from functools import partial
-
 from FreeSimpleGUI import Element
 
 import Crypto_full

@@ -5,3 +5,4 @@ test?.*
 test.*
 __pycache__/
 Bild.png
+exe-file/
