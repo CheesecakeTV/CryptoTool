@@ -6,7 +6,7 @@ from datetime import datetime as dt
 from Crypto_full import encrypt_full,decrypt_full
 
 manager_data = appdata / "Passwordmanager.pm"
-password:str|None = None
+_password: str | None = None
 security_multiplier = 3
 
 @dataclass
@@ -22,66 +22,66 @@ class Entry:
     def __eq__(self, other):
         return hash(self) == hash(other)
 
-def get_password() -> str|None:
+def _get_password() -> str|None:
     """
     Returns or asks for the manager-password
     :return:
     """
-    global password
+    global _password
 
     if not manager_data.exists():
         sg.theme("DarkGray11")
         answer = sg.popup_get_text("First time using password-manager.\n"
                                    "Please set a password.\n"
-                                   "\nAttention!\nIf you forget the password,\nyou can't access the passwordmanager\nwithout deleting all saved entries."
+                                   "\nAttention!\nIf you forget the _password,\nyou can't access the passwordmanager\nwithout deleting all saved entries."
                                    , title="Setup Password", font="Any 12",keep_on_top=True,password_char="*")
 
         if not answer:
             return None
 
-        password = answer
+        _password = answer
 
         manager_data.write_bytes(
             encrypt_full(
-                password,
+                _password,
                 pickle.dumps(set()),
                 security_multiplier=security_multiplier
             )
         )
 
-    elif password is None:
+    elif _password is None:
         sg.theme("DarkGray11")
         answer = sg.popup_get_text("Enter password for passwordmanager",title="Password",font="Any 12",password_char="*")
         if answer is None:
             return None
 
-        password = answer
+        _password = answer
 
     try:
         decrypt_full(
-            password,
+            _password,
             manager_data.read_bytes(),
             security_multiplier=security_multiplier,
         )
     except ValueError:
         sg.theme("DarkGray11")
         sg.popup_error("Wrong password, or file was modified!",font="Any 12")
-        password = None
-        return get_password()
+        _password = None
+        return _get_password()
 
-    return password
+    return _password
 
 def _load_entries() -> set[Entry]:
     """
     Returns saved passwords
     :return:
     """
-    if get_password() is None:
+    if _get_password() is None:
         return set()
 
     return pickle.loads(
         decrypt_full(
-            password,
+            _password,
             manager_data.read_bytes(),
             security_multiplier=security_multiplier
         )
@@ -93,16 +93,63 @@ def _save_entries(entries:set[Entry]):
     :param entries:
     :return:
     """
-    if get_password() is None:
+    if _get_password() is None:
         return None
 
     manager_data.write_bytes(
         encrypt_full(
-            password,
+            _password,
             pickle.dumps(entries),
             security_multiplier=security_multiplier,
         )
     )
 
+def _get_layout() -> list[list[sg.Element]]:
+    """Window-layout"""
+
+    layout = [
+        [
+            sg.T("Search:"),
+            sg.In(expand_x=True,key="Searchbar",enable_events=True)
+        ],
+        [
+            sg.Table(
+                [],
+                headings=["Title","Subtitle","Created/Modified"],
+                col_widths=[20,50,15],
+                auto_size_columns=False,
+                size=(0,15),
+                key="Table",
+                justification="left",
+            )
+        ],[
+            sg.Button("Apply",key="Apply"),
+            sg.Button("Delete Entry",key="Delete"),
+        ]
+    ]
+
+    return layout
+
+def passwordmanager() -> dict|None:
+    """
+    Full passwordmanager.
+    Returns password-data if it is supposed to be opened
+    :return:
+    """
+    sg.theme("DarkGray11")
+
+    layout = _get_layout()
+
+    w = sg.Window("Password-Manager",layout,finalize=True)
+    w.read(timeout=10)
+
+    while True:
+        e,v = w.read()
+
+        if e is None:
+            w.close()
+            return None
+
+passwordmanager()
 
 
