@@ -6,6 +6,7 @@ from FreeSimpleGUI import Element
 import Crypto_full
 import Crypto_files
 import Crypto_tempfiles
+import Crypto_DiffieHellman
 import FreeSimpleGUI as sg
 import base64
 import clipboard as clp
@@ -136,6 +137,14 @@ def _get_main_layout() -> list[list[Element]]:
         ]
     ],key="PW_Text")
 
+    tab_key_exchange = sg.Tab("Key Exchange",[
+        [
+            sg.T("No key",key="Key_Exc_Status")
+        ],[
+            sg.Button("Exchange key",key="Key_Exc_Exchange_Key")
+        ]
+    ],key="PW_Exchange")
+
     layout = [
         [
             sg.TabGroup([[tab_in_multiline,tab_in_file,tab_in_clipboard]],enable_events=True,key="IN_Type"),
@@ -149,7 +158,7 @@ def _get_main_layout() -> list[list[Element]]:
             sg.TabGroup([[tab_out_multiline,tab_out_file,tab_out_clipboard,tab_out_tempfile]],key="OUT_Type",expand_y=True,enable_events=True),
             sg.Frame("Password",
                      [[sg.TabGroup([[
-                         tab_password_Text
+                         tab_password_Text,tab_key_exchange,
                      ]],key="PW_Type")]],
                      expand_y=True,
             )
@@ -211,6 +220,11 @@ def get_password(_,__,v) -> str:
     match v["PW_Type"]:
         case "PW_Text":
             return v["password_text"]
+        case "PW_Exchange":
+            if exchanged_key is None:
+                raise KeyError  # Get it? I'm very funny...
+
+            return base64.b85encode(exchanged_key).decode()
 
 def set_output_text(w,e,v,data:bytes):
     """Output in multiline text-field"""
@@ -362,45 +376,53 @@ def full_pipeline(w,e,v):
         set_encryption_status(w,e,v,status="No input",bg_color="DarkGray",txt_color="black")
         return
 
-    if pipeline_direction == DIRECTION.AUTO: # Automatic direction check
-        try:
-            # Decryption
-            pipeline_direction = DIRECTION.DECRYPT
-            crypted_data = pipeline_decoding(data_in)
-            crypted_data = pipeline_decrypt(w,e,v,crypted_data)
-            set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
-        except ValueError:
-            # Encryption
-            pipeline_direction = DIRECTION.ENCRYPT
-            crypted_data = pipeline_encrypt(w, e, v, data_in)
-            crypted_data = pipeline_encoding(crypted_data)
-            set_encryption_status(w, e, v, status="Encrypted", bg_color="LightSkyBlue", txt_color="black")
-
-    elif pipeline_direction == DIRECTION.ENCRYPT:  # Normal encryption
-        crypted_data = pipeline_encrypt(w,e,v,data_in)
-        crypted_data = pipeline_encoding(crypted_data)
-        set_encryption_status(w,e,v,status="Encrypted",bg_color="LightSkyBlue",txt_color="black")
-    else:
-        crypted_data = b""  # So that the IDE doesn't complain
-        try:
-            crypted_data = pipeline_decoding(data_in)
-            crypted_data = pipeline_decrypt(w, e, v, crypted_data)
-            set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
-        except ValueError:
+    try:
+        if pipeline_direction == DIRECTION.AUTO: # Automatic direction check
             try:
-                crypted_data = pipeline_decrypt(w, e, v, crypted_data, verify=False)
-                set_encryption_status(w, e, v, "Message might be modified!", bg_color="red", txt_color="lime")
+                # Decryption
+                pipeline_direction = DIRECTION.DECRYPT
+                crypted_data = pipeline_decoding(data_in)
+                crypted_data = pipeline_decrypt(w,e,v,crypted_data)
+                set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
             except ValueError:
-                set_encryption_status(w,e,v,"Message has wrong format or is incomplete!",bg_color="orange", txt_color="black")
-                crypted_data = b"Error"
+                # Encryption
+                pipeline_direction = DIRECTION.ENCRYPT
+                crypted_data = pipeline_encrypt(w, e, v, data_in)
+                crypted_data = pipeline_encoding(crypted_data)
+                set_encryption_status(w, e, v, status="Encrypted", bg_color="LightSkyBlue", txt_color="black")
+
+        elif pipeline_direction == DIRECTION.ENCRYPT:  # Normal encryption
+            crypted_data = pipeline_encrypt(w,e,v,data_in)
+            crypted_data = pipeline_encoding(crypted_data)
+            set_encryption_status(w,e,v,status="Encrypted",bg_color="LightSkyBlue",txt_color="black")
+        else:
+            crypted_data = b""  # So that the IDE doesn't complain
+            try:
+                crypted_data = pipeline_decoding(data_in)
+                crypted_data = pipeline_decrypt(w, e, v, crypted_data)
+                set_encryption_status(w, e, v, status="Decrypted", bg_color="lime",txt_color="black")  # Reset alarm
+            except ValueError:
+                try:
+                    crypted_data = pipeline_decrypt(w, e, v, crypted_data, verify=False)
+                    set_encryption_status(w, e, v, "Message might be modified!", bg_color="red", txt_color="lime")
+                except ValueError:
+                    set_encryption_status(w,e,v,"Message has wrong format or is incomplete!",bg_color="orange", txt_color="black")
+                    crypted_data = b"Error"
+
+    except KeyError:
+        set_encryption_status(w,e,v,status="No password",bg_color="orange", txt_color="black")
+        return
 
     try:
         pipeline_output(w,e,v,crypted_data)
     except UnicodeDecodeError:
         set_encryption_status(w, e, v, "Wrong settings or password", bg_color="orange", txt_color="black")
 
+exchanged_key:bytes|None = None # Key from key exchange
+
 def main():
     global pipeline_encoding,pipeline_decoding,pipeline_output,pipeline_input,pipeline_encrypt,pipeline_decrypt
+    global exchanged_key
 
     w = sg.Window("Cypher Tool",_get_main_layout(),finalize=True,element_justification="center")
     e,v = w.read(timeout=10)
@@ -434,6 +456,12 @@ def main():
                 print("Abstract call error:",ex.__class__.__name__,ex)
 
         ### Non-abstract functionality ###
+
+        if e == "Key_Exc_Exchange_Key":
+            if _ := Crypto_DiffieHellman.perform_key_exchange():
+                exchanged_key = _
+                w["Key_Exc_Status"]("Key present!")
+
         if e in ["IN_Multiline","IN_File_Path"]:
             set_encryption_status(w,e,v)
 
