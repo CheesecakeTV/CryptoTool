@@ -139,7 +139,7 @@ def _get_main_layout() -> list[list[Element]]:
 
     tab_key_exchange = sg.Tab("Key Exchange",[
         [
-            sg.T("No key",key="Key_Exc_Status")
+            sg.T("No key",key="Key_Exc_Status",background_color="orange",text_color="black")
         ],[
             sg.Button("Exchange key",key="Key_Exc_Exchange_Key")
         ]
@@ -461,6 +461,7 @@ def main():
             if _ := Crypto_DiffieHellman.perform_key_exchange():
                 exchanged_key = _
                 w["Key_Exc_Status"]("Key present!")
+                w["Key_Exc_Status"].update(background_color = "lime")
 
         if e in ["IN_Multiline","IN_File_Path"]:
             set_encryption_status(w,e,v)
