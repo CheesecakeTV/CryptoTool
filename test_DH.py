@@ -14,6 +14,9 @@ U_pub = U.public_key()
 # and it is verified as authentic
 V = ECC.generate(curve='Ed25519')
 V_pub = V.public_key()
+V_pub = V_pub.export_key(format="DER")
+
+V_pub = ECC.import_key(V_pub)
 
 session_key = key_agreement(static_priv=U, static_pub=V_pub, kdf=kdf)
 sesson_key_same = key_agreement(static_priv=V, static_pub=U_pub, kdf=kdf)
