@@ -1,5 +1,8 @@
 import os
 from functools import partial
+
+from FreeSimpleGUI import Element
+
 import Crypto_full
 import Crypto_files
 import Crypto_tempfiles
@@ -27,7 +30,7 @@ def throw_event(w:sg.Window,event:str,value:any=None):
     """
     w.write_event_value(event,value)
 
-def _get_main_layout():
+def _get_main_layout() -> list[list[Element]]:
     """Main layout"""
 
     ### Abstractly called key-functions ###
@@ -158,6 +161,7 @@ def _get_main_layout():
 def bind_events(w,*_):
     """
     TKinter event-binding
+    Called once after window creation
     :param w:
     :param _:
     :return:

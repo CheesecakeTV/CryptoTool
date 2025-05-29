@@ -35,7 +35,7 @@ def decrypt(enc_data:bytes,key:bytes,nonce:bytes,tag:bytes=None) -> bytes:
 
     return data
 
-def derive_key(key:str|bytes,salt:bytes=None,length_bytes:int=32,salt_len:int=16,security_multiplier:int=10) -> tuple[bytes,bytes]:
+def derive_key(key:str|bytes,salt:bytes=None,length_bytes:int=32,salt_len:int=16,security_multiplier:int=1) -> tuple[bytes,bytes]:
     """
     Derives a key from passed string with the length of length_bytes.
     If no salt is passed, a random one with length 16 will be generated.
