@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from Globals import appdata
 from dataclasses import dataclass,field
 import FreeSimpleGUI as sg
@@ -17,7 +18,7 @@ class Entry:
     data:dict=field(default_factory=dict)
 
     def __hash__(self):
-        return hash((self.Title,self.Subtitle))
+        return hash((self.Title.casefold(),self.Subtitle.casefold()))
 
     def __eq__(self, other):
         return hash(self) == hash(other)
@@ -108,10 +109,10 @@ def _get_layout() -> list[list[sg.Element]]:
     """Window-layout"""
 
     layout = [
-        [
-            sg.T("Search:"),
-            sg.In(expand_x=True,key="Searchbar",enable_events=True)
-        ],
+        # [
+        #     sg.T("Search:"),
+        #     sg.In(expand_x=True,key="Searchbar",enable_events=True)
+        # ],
         [
             sg.Table(
                 [],
@@ -130,6 +131,40 @@ def _get_layout() -> list[list[sg.Element]]:
 
     return layout
 
+def _entries_to_table(entries:Iterable[Entry]) -> list[list[str]]:
+    """
+    Return for layout-Table
+    :param entries:
+    :return:
+    """
+    return [
+        [
+            e.Title,
+            e.Subtitle,
+            e.Created.strftime("%d.%m.%Y %H:%M"),
+        ] for e in entries
+    ]
+
+def new_entry(title:str,subtitle:str,data:dict) -> bool:
+    """
+    Create a new password-entry
+    :param title:
+    :param subtitle:
+    :param data:
+    :return:
+    """
+    title = title.strip()
+    subtitle = subtitle.strip()
+
+    if _get_password() is None:
+        return False
+
+    entries:set[Entry] = _load_entries()
+    entries.add(Entry(title,subtitle,data=data))
+    _save_entries(entries)
+
+    return True
+
 def passwordmanager() -> dict|None:
     """
     Full passwordmanager.
@@ -138,18 +173,41 @@ def passwordmanager() -> dict|None:
     """
     sg.theme("DarkGray11")
 
+    entries:list[Entry] = list(_load_entries())
+    if not entries:
+        return None
+
     layout = _get_layout()
 
     w = sg.Window("Password-Manager",layout,finalize=True)
     w.read(timeout=10)
+    w["Table"].bind("<Double-Button-1>","_Double")
+
+    w["Table"](_entries_to_table(entries))
 
     while True:
         e,v = w.read()
+        print(e)
+
+        if e is None:
+            return None
+
+        if e in ["Table_Double","Apply"] and v["Table"]:
+            w.close()
+            return entries[v["Table"][0]].data
+
+        if e == "Delete" and v["Table"] and "Yes" == sg.popup_yes_no("Do you really want to delete this entry/these entries?",title="You sure?"):
+            _save_entries({
+                i for n,i in enumerate(entries)
+                if not n in v["Table"]
+            })
+
+            entries = list(_load_entries())
+            w["Table"](_entries_to_table(entries))
 
         if e is None:
             w.close()
             return None
 
-passwordmanager()
 
 
