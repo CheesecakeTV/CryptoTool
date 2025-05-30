@@ -1,15 +1,18 @@
 from collections.abc import Iterable
+from functools import total_ordering
 from Globals import appdata
 from dataclasses import dataclass,field
 import FreeSimpleGUI as sg
 import pickle
 from datetime import datetime as dt
 from Crypto_full import encrypt_full,decrypt_full
+from typing import Self
 
 manager_data = appdata / "Passwordmanager.pm"
 _password: str | None = None
 security_multiplier = 3
 
+@total_ordering
 @dataclass
 class Entry:
     Title:str       # More of a group name
@@ -20,8 +23,11 @@ class Entry:
     def __hash__(self):
         return hash((self.Title.casefold(),self.Subtitle.casefold()))
 
-    def __eq__(self, other):
+    def __eq__(self, other:Self):
         return hash(self) == hash(other)
+
+    def __lt__(self, other:Self):
+        return self.Title < other.Title
 
 def _get_password() -> str|None:
     """
@@ -77,23 +83,23 @@ def _get_password() -> str|None:
 
     return _password
 
-def _load_entries() -> set[Entry]:
+def _load_entries() -> list[Entry]:
     """
     Returns saved passwords
     :return:
     """
     if _get_password() is None:
-        return set()
+        return list()
 
-    return pickle.loads(
+    return sorted(list(pickle.loads(
         decrypt_full(
             _password,
             manager_data.read_bytes(),
             security_multiplier=security_multiplier
         )
-    )
+    )))
 
-def _save_entries(entries:set[Entry]):
+def _save_entries(entries:list[Entry]):
     """
     Saves the entries encrypted to the file
     :param entries:
@@ -204,9 +210,9 @@ def new_entry(data:dict) -> bool:
     if not title + subtitle:
         return False
 
-    entries:set[Entry] = _load_entries()
+    entries:set[Entry] = set(_load_entries())
     entries.add(Entry(title,subtitle,data=data))
-    _save_entries(entries)
+    _save_entries(list(entries))
 
     return True
 
@@ -218,7 +224,7 @@ def passwordmanager() -> dict|None:
     """
     sg.theme("DarkGray11")
 
-    entries:list[Entry] = list(_load_entries())
+    entries:list[Entry] = _load_entries()
     if not entries:
         return None
 
@@ -242,12 +248,12 @@ def passwordmanager() -> dict|None:
             return entries[v["Table"][0]].data
 
         if e == "Delete" and v["Table"] and "Yes" == sg.popup_yes_no("Do you really want to delete this entry/these entries?",title="You sure?"):
-            _save_entries({
+            _save_entries([
                 i for n,i in enumerate(entries)
                 if not n in v["Table"]
-            })
+            ])
 
-            entries = list(_load_entries())
+            entries = _load_entries()
             w["Table"](_entries_to_table(entries))
 
         if e == "Rename" and v["Table"]:
@@ -261,9 +267,9 @@ def passwordmanager() -> dict|None:
             the_entry.Title = new_title
             the_entry.Subtitle = new_subtitle
 
-            _save_entries(set(entries))
+            _save_entries(entries)
 
-            entries = list(_load_entries())
+            entries = _load_entries()
             w["Table"](_entries_to_table(entries))
 
         if e is None:
