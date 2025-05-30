@@ -130,7 +130,8 @@ def _get_layout() -> list[list[sg.Element]]:
             )
         ],[
             sg.Button("Apply",key="Apply"),
-            sg.Button("Delete Entry",key="Delete"),
+            sg.Button("Delete",key="Delete"),
+            sg.Button("Rename",key="Rename"),
         ]
     ]
 
@@ -150,30 +151,34 @@ def _entries_to_table(entries:Iterable[Entry]) -> list[list[str]]:
         ] for e in entries
     ]
 
-def new_entry(data:dict) -> bool:
+def get_title_and_subtitle(window_title:str,title:str="", subtitle:str="") -> tuple[str,str]:
     """
-    Create a new password-entry
-    :param data:
-    :return:
+    Title and subtitle window
+    :param window_title:
+    :param title:
+    :param subtitle:
+    :return: Title, subtitle
     """
-
     layout = [
         [
             sg.T("Title:",size=(10,0)),
-            sg.In(key="Title")
+            sg.In(title,key="Title")
         ],[
             sg.T("Subtitle:",size=(10,0)),
-            sg.In(key="Subtitle")
+            sg.In(subtitle,key="Subtitle")
         ],[
             sg.Button("Save")
         ]
     ]
 
-    w = sg.Window("New Entry",layout,finalize=True)
+    w = sg.Window(window_title,layout,finalize=True)
+    w.read(timeout=10)
+    w["Title"].bind("<Return>","")
+    w["Subtitle"].bind("<Return>","")
     e,v = w.read()
 
     if e is None:
-        return False
+        return "",""
 
     v = v.copy()
     w.close()
@@ -181,7 +186,22 @@ def new_entry(data:dict) -> bool:
     title = v["Title"].strip()
     subtitle = v["Subtitle"].strip()
 
+    return title, subtitle
+
+
+def new_entry(data:dict) -> bool:
+    """
+    Create a new password-entry
+    :param data:
+    :return:
+    """
+
     if _get_password() is None:
+        return False
+
+    title, subtitle = get_title_and_subtitle("New entry")
+
+    if not title + subtitle:
         return False
 
     entries:set[Entry] = _load_entries()
@@ -226,6 +246,22 @@ def passwordmanager() -> dict|None:
                 i for n,i in enumerate(entries)
                 if not n in v["Table"]
             })
+
+            entries = list(_load_entries())
+            w["Table"](_entries_to_table(entries))
+
+        if e == "Rename" and v["Table"]:
+            the_entry = entries[v["Table"][0]]
+
+            new_title, new_subtitle = get_title_and_subtitle("Rename entry", the_entry.Title, the_entry.Subtitle)
+
+            if not new_title + new_subtitle:
+                continue
+
+            the_entry.Title = new_title
+            the_entry.Subtitle = new_subtitle
+
+            _save_entries(set(entries))
 
             entries = list(_load_entries())
             w["Table"](_entries_to_table(entries))
