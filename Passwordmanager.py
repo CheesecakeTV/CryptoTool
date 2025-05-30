@@ -29,6 +29,30 @@ class Entry:
     def __lt__(self, other:Self):
         return self.Title < other.Title
 
+def _set_new_password() -> str|None:
+    """
+    Set/Change the password
+    :return: New password or None, if aborted
+    """
+    global _password
+
+    sg.theme("DarkGray11")
+    answer = sg.popup_get_text("Please set a password for the password-manager.\n"
+                               "\nAttention!\nIf you forget the password,\nyou can't access the passwordmanager\nwithout deleting all saved entries."
+                               , title="Setup Password", font="Any 12", keep_on_top=True, password_char="*")
+
+    if not answer:
+        return None
+
+    sg.theme("DarkGray11")
+    if answer != sg.popup_get_text("Please Repeat password:", font="Any 12", keep_on_top=True, password_char="*"):
+        sg.popup_error("Entered passwords do not match!", font="Any 12")
+        return None
+
+    _password = answer
+    return _password
+
+
 def _get_password() -> str|None:
     """
     Returns or asks for the manager-password
@@ -37,21 +61,8 @@ def _get_password() -> str|None:
     global _password
 
     if not manager_data.exists():
-        sg.theme("DarkGray11")
-        answer = sg.popup_get_text("First time using password-manager.\n"
-                                   "Please set a password.\n"
-                                   "\nAttention!\nIf you forget the password,\nyou can't access the passwordmanager\nwithout deleting all saved entries."
-                                   , title="Setup Password", font="Any 12",keep_on_top=True,password_char="*")
-
-        if not answer:
+        if _set_new_password() is None:
             return None
-
-        sg.theme("DarkGray11")
-        if answer != sg.popup_get_text("Please Repeat password:", font="Any 12", keep_on_top=True, password_char="*"):
-            sg.popup_error("Entered passwords do not match!",font="Any 12")
-            return None
-
-        _password = answer
 
         manager_data.write_bytes(
             encrypt_full(
@@ -99,13 +110,13 @@ def _load_entries() -> list[Entry]:
         )
     )))
 
-def _save_entries(entries:list[Entry]):
+def _save_entries(entries:list[Entry],check_password:bool=True):
     """
     Saves the entries encrypted to the file
     :param entries:
     :return:
     """
-    if _get_password() is None:
+    if check_password and _get_password() is None:
         return None
 
     manager_data.write_bytes(
@@ -138,6 +149,7 @@ def _get_layout() -> list[list[sg.Element]]:
             sg.Button("Apply",key="Apply"),
             sg.Button("Delete",key="Delete"),
             sg.Button("Rename",key="Rename"),
+            sg.Button("Change passwordmanager's password",key="ChangePassword")
         ]
     ]
 
@@ -193,7 +205,6 @@ def get_title_and_subtitle(window_title:str,title:str="", subtitle:str="") -> tu
     subtitle = v["Subtitle"].strip()
 
     return title, subtitle
-
 
 def new_entry(data:dict) -> bool:
     """
@@ -271,6 +282,11 @@ def passwordmanager() -> dict|None:
 
             entries = _load_entries()
             w["Table"](_entries_to_table(entries))
+
+        if e == "ChangePassword":
+            if _set_new_password():
+                _save_entries(entries,check_password=False)
+                sg.popup_ok("Done!",keep_on_top=True,font="Any 12")
 
         if e is None:
             w.close()
