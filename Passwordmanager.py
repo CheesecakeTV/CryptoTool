@@ -12,6 +12,11 @@ manager_data = appdata / "Passwordmanager.pm"
 _password: str | None = None
 security_multiplier = 3
 
+_password_types = {
+    "PW_Text":"Text",
+    "PW_Exchange":"Exchanged key",
+}
+
 @total_ordering
 @dataclass
 class Entry:
@@ -138,8 +143,8 @@ def _get_layout() -> list[list[sg.Element]]:
         [
             sg.Table(
                 [],
-                headings=["Title","Subtitle","Created/Modified"],
-                col_widths=[20,50,15],
+                headings=["Title","Subtitle","Created/Modified","PW-Type"],
+                col_widths=[20,50,15,15],
                 auto_size_columns=False,
                 size=(0,15),
                 key="Table",
@@ -166,6 +171,7 @@ def _entries_to_table(entries:Iterable[Entry]) -> list[list[str]]:
             e.Title,
             e.Subtitle,
             e.Created.strftime("%d.%m.%Y %H:%M"),
+            _password_types.get(e.data.get("PW_Type"),"???")
         ] for e in entries
     ]
 
